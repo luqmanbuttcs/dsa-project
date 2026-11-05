@@ -156,7 +156,6 @@ class FoundationSlot(QWidget):
     def dragEnterEvent(self, event) -> None:
         payload = CardButton._drag_payload(event)
         if payload and payload[1] != f"foundation-{self.suit.code.lower()}":
-            self.set_drag_highlight(True)
             event.setDropAction(Qt.DropAction.MoveAction)
             event.accept()
             return
@@ -264,7 +263,6 @@ class TableauColumnWidget(QWidget):
     def dragEnterEvent(self, event) -> None:
         payload = CardButton._drag_payload(event)
         if payload and payload[1] != self.column_id:
-            self.set_drag_highlight(True)
             event.setDropAction(Qt.DropAction.MoveAction)
             event.accept()
             return
