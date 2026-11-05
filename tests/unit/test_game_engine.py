@@ -11,10 +11,13 @@ from solitaire.structures.queue import Queue
 from solitaire.structures.stack import Stack
 
 
-def arranged_move_state(\n    destination_card_id: str = "C-9",\n    source_card_id: str = "H-8",\n) -> GameState:
+def arranged_move_state(
+    destination_card_id: str = "C-9",
+    source_card_id: str = "H-8",
+) -> GameState:
     """Build a deterministic 8H tableau move with a hidden source card."""
     cards = {card.card_id: card for card in DeckFactory.create_standard_deck()}
-    eight_hearts = cards.pop("H-8")
+    source_card = cards.pop(source_card_id)
     destination_card = cards.pop(destination_card_id)
 
     counts = [5, 5, 4, 4, 4, 3, 3]
@@ -30,7 +33,7 @@ def arranged_move_state(\n    destination_card_id: str = "C-9",\n    source_card
             column.push(card)
 
         if column_number == 1:
-            top = eight_hearts
+            top = source_card
         elif column_number == 2:
             top = destination_card
         else:
