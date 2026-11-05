@@ -232,3 +232,30 @@ Do not mark a milestone complete just because files exist. Its exit criteria and
 
 After the six-document baseline is in place, start with the project scaffold and custom data structures. Implement and test Linked List, Stack, Queue, and deck-list behavior before writing the visual board. This is the foundation for all later gameplay and DSA monitoring.
 
+
+
+## 7. Implementation progress snapshot
+
+**Latest verified baseline:** `feat/core-data-structures`
+
+Completed and covered by automated tests:
+- Custom doubly linked list, including node-preserving run detach/attach.
+- Custom Stack abstraction backed by the linked list.
+- Custom FIFO circular-buffer Queue.
+- Card model and Array/List deck creation/shuffle.
+- Exact initial Klondike deal and Dictionary card index.
+- Tableau and foundation move validation.
+- Draw 1/Draw 3, waste handling, and stock recycling.
+- Tableau run moves, waste-to-tableau, and tableau/waste-to-foundation actions.
+- Automatic exposed-card flipping and win detection.
+- Structured DSA operation events for setup and implemented game actions.
+
+GitHub Actions reports **47 passing tests** on the current implementation branch.
+
+Still pending:
+- Undo/Redo stacks and reversible action records.
+- PyQt6 board, card widgets, drag/drop, and animation.
+- Live DSA monitor presentation, move log, and final UI/resizing/accessibility checks.
+- Optional Hint, timer/score behavior, and final demonstration preparation.
+
+This snapshot describes verified implementation status, not a change to the original assignment scope.
