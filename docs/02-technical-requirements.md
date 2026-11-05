@@ -233,5 +233,6 @@ The source code implementing the instructor's first two phases is:
 | Phase 2 — Foundation piles | `GameState.foundations`, a suit-keyed dictionary of custom Stack instances |
 | Phase 2 — Card movement | `src/solitaire/domain/game_engine.py` |
 | Phase 2 — Rule validation | `src/solitaire/domain/rules.py` |
+| Phase 4 — Basic desktop UI | `src/solitaire/main.py`, `src/solitaire/ui/main_window.py`, `card_widget.py`, and `pile_widgets.py` |
 
 Tableau columns expose a Stack interface backed by the custom doubly linked list. This is intentional: Stack operations provide LIFO pile semantics, while linked-list node splicing moves a complete face-up suffix without copying cards or keeping duplicate stores. Foundation piles are Stack instances; the Stack implementation also uses the linked-list implementation as its backing storage.
