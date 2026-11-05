@@ -75,6 +75,15 @@ class Card:
     rank: Rank
     face_up: bool = False
 
+    def __post_init__(self) -> None:
+        """Reject invalid card attributes at the domain boundary."""
+        if not isinstance(self.suit, Suit):
+            raise TypeError("suit must be a Suit enum value")
+        if not isinstance(self.rank, Rank):
+            raise TypeError("rank must be a Rank enum value")
+        if not isinstance(self.face_up, bool):
+            raise TypeError("face_up must be a bool")
+
     @property
     def card_id(self) -> str:
         return f"{self.suit.code}-{self.rank.label}"
