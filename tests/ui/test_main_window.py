@@ -20,6 +20,7 @@ from solitaire.domain.operations import StructureName
 from solitaire.domain.game_state import (
     CardLocation,
     GameState,
+    GameStatus,
     TableauColumn,
     Zone,
     create_new_game,
@@ -592,4 +593,72 @@ def test_dsa_history_rows_include_ordered_utc_timestamps(app):
     assert queue_row.startswith("#")
     assert " UTC " in queue_row
     assert "PLAY" in queue_row
+    window.close()
+
+
+
+def build_four_king_endgame_state() -> GameState:
+    cards = {
+        card.card_id: card for card in DeckFactory.create_standard_deck()
+    }
+    stock = Queue()
+    waste = Stack()
+    tableau = {
+        f"tableau-{number}": TableauColumn(f"tableau-{number}")
+        for number in range(1, 8)
+    }
+    foundations = {suit: Stack() for suit in Suit}
+
+    for index, suit in enumerate(Suit, start=1):
+        for rank in Rank:
+            card = cards.pop(f"{suit.code}-{rank.label}")
+            card.turn_face_up()
+            if rank is Rank.KING:
+                tableau[f"tableau-{index}"].push(card)
+            else:
+                foundations[suit].push(card)
+
+    card_index = {}
+    for suit, pile in foundations.items():
+        pile_id = f"foundation-{suit.code.lower()}"
+        for position, card in enumerate(pile.to_list()):
+            card_index[card.card_id] = CardLocation(
+                Zone.FOUNDATION, pile_id, position, card.face_up
+            )
+    for column_id, column in tableau.items():
+        for position, card in enumerate(column.cards_bottom_to_top()):
+            card_index[card.card_id] = CardLocation(
+                Zone.TABLEAU, column_id, position, card.face_up
+            )
+
+    state = GameState(
+        stock=stock,
+        waste=waste,
+        tableau=tableau,
+        foundations=foundations,
+        card_index=card_index,
+        status=GameStatus.PLAYING,
+    )
+    state.assert_invariants()
+    return state
+
+
+def test_nonblocking_victory_panel_appears_and_undo_hides_it(app):
+    engine = GameEngine(build_four_king_endgame_state())
+    window = MainWindow(engine)
+    assert not window.victory_panel.isVisible()
+
+    for index, suit in enumerate(Suit, start=1):
+        engine.move_tableau_to_foundation(f"tableau-{index}", suit)
+
+    window._refresh_board()
+    assert engine.state.status is GameStatus.WON
+    assert window.victory_panel.isVisible()
+    assert "All 52 cards are home" in window.victory_label.text()
+    assert "Score: 40" in window.victory_label.text()
+
+    assert engine.undo()
+    window._refresh_board()
+    assert engine.state.status is GameStatus.PLAYING
+    assert not window.victory_panel.isVisible()
     window.close()
