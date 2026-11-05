@@ -32,7 +32,7 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Automatic face-up flip of a newly exposed tableau card.
 - [x] Win detection only when all four foundations contain complete, correctly ordered Ace-to-King suit sequences (52 cards total).
 - [x] Structured DSA operation tracker for setup and game actions.
-- [x] Unit tests and GitHub Actions CI (51 tests passing on the current branch).
+- [x] Unit tests and GitHub Actions CI (58 tests passing on the current branch).
 
 ### Still to implement
 - [ ] Undo and Redo history stacks.
@@ -67,3 +67,13 @@ Run the unit tests:
 Tableau stacks are backed by the custom linked list. This gives tableau columns Stack behavior while preserving one canonical set of card nodes rather than maintaining duplicate card copies.
 
 The operation tracker records events after real methods/actions execute. It is not a simulated counter layer.
+
+
+## Phase 1 and Phase 2 completion
+
+The instructor's Card and Deck phase and Tableau and Foundation phase are implemented on `feat/core-data-structures`.
+
+- Phase 1: Card exposes suit, rank, and face-up/down state; the deck factory creates, validates, and shuffles the complete standard 52-card list.
+- Phase 2: Tableau columns expose Stack operations backed by custom doubly linked-list nodes; complete face-up runs can be detached/attached without copying cards; four suit foundations are Stack piles; game-engine methods implement tableau, waste, and foundation transfers.
+
+Verification: GitHub Actions reports **58 passing tests** on the current phase implementation.
