@@ -692,7 +692,7 @@ class GameEngine:
         self._refresh_card_index(action_id, context=context)
         self.state.assert_invariants()
 
-    def _recycle_waste(self, action_id: str) -> None
+    def _recycle_waste(self, action_id: str) -> None:
         """Recycle waste top-to-bottom so the next draw uses the former top."""
         recycled: list[str] = []
         while not self.state.waste.is_empty():
