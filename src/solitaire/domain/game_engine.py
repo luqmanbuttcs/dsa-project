@@ -228,6 +228,10 @@ class GameEngine:
             StructureName.STACK, "PUSH", action_id=action_id,
             pile_id=destination_column_id, card_ids=(moved.card_id,)
         )
+        self._record(
+            StructureName.LINKED_LIST, "APPEND_NODE", action_id=action_id,
+            pile_id=destination_column_id, card_ids=(moved.card_id,),
+        )
 
         self.state.move_count += 1
         self._refresh_card_index(action_id)
@@ -269,6 +273,10 @@ class GameEngine:
         self._record(
             StructureName.STACK, "POP", action_id=action_id,
             pile_id=source_column_id, card_ids=(moved.card_id,)
+        )
+        self._record(
+            StructureName.LINKED_LIST, "REMOVE_TOP_NODE", action_id=action_id,
+            pile_id=source_column_id, card_ids=(moved.card_id,),
         )
         foundation.push(moved)
         self._record(
