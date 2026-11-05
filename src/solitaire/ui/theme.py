@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPolygonF
+from PyQt6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPolygonF
 from PyQt6.QtWidgets import QFrame
 
 NAVY = "#071D32"
@@ -79,7 +79,7 @@ def paint_card_back(
     gradient.setColorAt(0.0, QColor("#1679C5"))
     gradient.setColorAt(0.45, QColor("#07539A"))
     gradient.setColorAt(1.0, QColor("#032C59"))
-    painter.fillPath(clip, gradient)
+    painter.fillPath(clip, QBrush(gradient))
 
     # Fine woven lines create depth without a raster asset.
     painter.save()
@@ -160,7 +160,7 @@ class FeltBoard(QFrame):
         gradient.setColorAt(0.32, QColor("#00713B"))
         gradient.setColorAt(0.72, QColor("#006333"))
         gradient.setColorAt(1.0, QColor("#004827"))
-        painter.fillPath(path, gradient)
+        painter.fillPath(path, QBrush(gradient))
         painter.save()
         painter.setClipPath(path)
 
@@ -189,7 +189,7 @@ class FeltBoard(QFrame):
         edge.setColorAt(0.0, QColor(150, 255, 185, 16))
         edge.setColorAt(0.55, QColor(0, 0, 0, 0))
         edge.setColorAt(1.0, QColor(0, 24, 12, 44))
-        painter.fillPath(path, edge)
+        painter.fillPath(path, QBrush(edge))
         painter.setPen(QPen(QColor("#32A56A"), 1.25))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(bounds, 16, 16)
