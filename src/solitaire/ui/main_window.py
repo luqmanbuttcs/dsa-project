@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         top_row.addWidget(stock_group)
 
         self.waste_widget = WasteWidget()
+        self.waste_widget.card_selected.connect(self._card_selected)
         waste_group = self._pile_group("WASTE", self.waste_widget)
         top_row.addWidget(waste_group)
         top_row.addStretch(1)
@@ -204,6 +205,9 @@ class MainWindow(QMainWindow):
         self.draw_mode_combo.setObjectName("draw-mode-combo")
         self.draw_mode_combo.addItem("Draw 1", 1)
         self.draw_mode_combo.addItem("Draw 3", 3)
+        self.draw_mode_combo.setCurrentIndex(
+            self.draw_mode_combo.findData(self.engine.state.draw_count)
+        )
         self.draw_mode_combo.currentIndexChanged.connect(self._draw_mode_changed)
         draw_group.addWidget(draw_label)
         draw_group.addWidget(self.draw_mode_combo)
