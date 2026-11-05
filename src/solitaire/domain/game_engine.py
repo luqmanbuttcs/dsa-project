@@ -514,14 +514,17 @@ class GameEngine:
 
     def _store_undo_snapshot(self, snapshot: GameSnapshot, action_id: str) -> None:
         """Push a pre-action snapshot and invalidate the redo branch."""
+        # History maintenance is a real Stack operation, but it is a separate
+        # internal action and must not inflate the player's move-level trace.
+        history_action_id = f"{action_id}-history"
         self._push_history_snapshot(
-            self.undo_stack, snapshot, action_id,
-            context="PLAY", pile_id="undo-history"
+            self.undo_stack, snapshot, history_action_id,
+            context="HISTORY", pile_id="undo-history"
         )
         while not self.redo_stack.is_empty():
             self._pop_history_snapshot(
-                self.redo_stack, action_id,
-                context="PLAY", pile_id="redo-history"
+                self.redo_stack, history_action_id,
+                context="HISTORY", pile_id="redo-history"
             )
 
     def _push_history_snapshot(
