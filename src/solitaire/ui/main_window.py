@@ -372,7 +372,9 @@ class MainWindow(QMainWindow):
         self._set_status(f"Drew {len(drawn)} card(s). Select the top waste card to move it.")
         self._refresh_board()
         if drawn and stock_visual is not None:
-            self._animate_move_visuals({drawn[-1].card_id: stock_visual})
+            self._animate_move_visuals(
+                {card.card_id: stock_visual for card in drawn}
+            )
 
     def _card_selected(self, card_id: str, pile_id: str) -> None:
         if pile_id.startswith("foundation-"):
