@@ -182,17 +182,17 @@ class DSAMonitorPanel(QWidget):
         history_title = QLabel("◷  Operation History")
         history_title.setStyleSheet("color: #F4F8FF; font-size: 12px; font-weight: 900;")
         history_layout.addWidget(history_title)
-        self.operation_history = QListWidget()
-        self.operation_history.setObjectName("dsa-operation-history")
-        self.operation_history.setAlternatingRowColors(False)
-        self.operation_history.setMaximumHeight(170)
-        self.operation_history.setStyleSheet(
+        self.move_timeline = QListWidget()
+        self.move_timeline.setObjectName("player-move-timeline")
+        self.move_timeline.setAlternatingRowColors(False)
+        self.move_timeline.setMaximumHeight(170)
+        self.move_timeline.setStyleSheet(
             "QListWidget { background: transparent; color: #DFEAF3; border: none; "
             "padding: 1px; font-size: 10px; }"
-            "QListWidget::item { padding: 5px 3px; border-bottom: 1px solid #1C4058; }"
+            "QListWidget::item { padding: 6px 3px; border-bottom: 1px solid #1C4058; }"
             "QListWidget::item:selected { background: #16486A; }"
         )
-        history_layout.addWidget(self.operation_history)
+        history_layout.addWidget(self.move_timeline)
         content_layout.addWidget(history_card)
 
         self.inspect_toggle = QPushButton("⌄  Inspect Internal Structure Details")
@@ -240,6 +240,26 @@ class DSAMonitorPanel(QWidget):
             view.setObjectName("dsa-detail-" + structure.name.lower())
             self.detail_views[structure] = view
             self.tabs.addTab(view, structure.value)
+
+        events_page = QWidget()
+        events_layout = QVBoxLayout(events_page)
+        events_layout.setContentsMargins(4, 6, 4, 4)
+        events_note = QLabel(
+            "Low-level operation events in the order the real data-structure methods recorded them."
+        )
+        events_note.setWordWrap(True)
+        events_note.setStyleSheet("color: #AFC4D7; font-size: 10px;")
+        events_layout.addWidget(events_note)
+        self.operation_history = QListWidget()
+        self.operation_history.setObjectName("dsa-operation-history")
+        self.operation_history.setAlternatingRowColors(True)
+        self.operation_history.setStyleSheet(
+            "QListWidget { background: #071F33; color: #DFEAF3; border: 1px solid #28516D; "
+            "border-radius: 8px; padding: 4px; font-size: 10px; }"
+            "QListWidget::item { padding: 5px 3px; }"
+        )
+        events_layout.addWidget(self.operation_history)
+        self.tabs.addTab(events_page, "Operation Events")
 
         self.details_panel = QFrame()
         self.details_panel.setObjectName("dsa-details-panel")
@@ -440,10 +460,20 @@ class DSAMonitorPanel(QWidget):
             self.latest_operation.setText("No operations recorded yet.")
 
         self.operation_history.clear()
-        for event in events[-8:]:
+        for event in events[-60:]:
             self.operation_history.addItem(self._event_line(event))
         if events:
             self.operation_history.scrollToBottom()
+
+        self.move_timeline.clear()
+        for move in reversed(engine.move_history[-5:]):
+            action_events = engine.tracker.events_for_action(move.action_id)
+            timestamp = action_events[-1].timestamp[11:16] if action_events else "--:--"
+            self.move_timeline.addItem(f"✓   {timestamp}   {move.description}")
+        if engine.move_history:
+            self.move_timeline.scrollToTop()
+        else:
+            self.move_timeline.addItem("No player moves recorded yet.")
 
         setup_events = [event for event in events if event.structure is StructureName.ARRAY_LIST]
         setup_lines = [
