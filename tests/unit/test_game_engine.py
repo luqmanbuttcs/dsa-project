@@ -224,7 +224,7 @@ def move_card_from_stock_to_waste(state: GameState, card_id: str) -> Card:
 
 
 def test_tableau_to_foundation_uses_stacks_and_updates_dictionary():
-    state = arranged_move_state(source_card_id="H-A")
+    state = arranged_move_state(source_run_ids=("H-A",))
     engine = GameEngine(state)
     source = state.tableau["tableau-1"]
     newly_exposed = source.cards_bottom_to_top()[-2]
@@ -440,7 +440,7 @@ def test_victory_is_false_when_foundation_order_is_corrupted():
 
 def test_tableau_move_transfers_entire_face_up_sequence_in_original_order():
     state = arranged_move_state(
-        destination_card_id="S-10",
+        destination_card_id="H-10",
         source_run_ids=("C-9", "H-8"),
     )
     engine = GameEngine(state)
