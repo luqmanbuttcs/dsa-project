@@ -204,6 +204,14 @@ def test_tableau_card_clicks_select_and_move_face_up_card(app):
 
     source_card.click()
     assert window.selected_card_id == "H-8"
+
+    # Selection refreshes the card widgets so the destination highlight state
+    # is current; query the refreshed board rather than a stale widget object.
+    destination_card = next(
+        button
+        for button in window.tableau_widgets["tableau-2"].card_buttons
+        if button.card_id == "C-9"
+    )
     destination_card.click()
 
     source = engine.state.tableau["tableau-1"]
