@@ -1162,7 +1162,8 @@ class MainWindow(QMainWindow):
                 f"Score: {state.score}  •  Time: "
                 f"{self._format_elapsed_time(state.elapsed_seconds)}"
             )
-        if hasattr(self, "dsa_monitor"):
+        # DEBUG ISOLATION: skip the monitor refresh to identify the native Qt abort.
+        if False and hasattr(self, "dsa_monitor"):
             self.dsa_monitor.refresh(
                 self.engine,
                 selected_card_id=self._selected_card_id,
