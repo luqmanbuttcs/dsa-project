@@ -333,3 +333,19 @@ Latest confirmed CI result: **69 passed**.
 **Entry point:** `python -m solitaire.main`
 
 **Phase 4 verification:** GitHub Actions passes **75 tests**, including six offscreen PyQt6 UI smoke tests. Latest confirmed run: https://github.com/luqmanbuttcs/dsa-project/actions/runs/41991249772
+
+
+## 11. Validation and Testing — completed
+
+Automated integration and unit tests now cover the requested validation checklist:
+
+- Legal tableau moves require descending sequential ranks and alternating colors. Multi-card runs are checked internally as well as against the destination.
+- Illegal tableau moves cover same-color targets, incorrect destination ranks, same-color cards inside a selected run, and face-down source cards. Tests assert that rejected actions do not mutate piles, Dictionary locations, or move count.
+- Tableau movement tests verify that the newly exposed card turns face-up, its Dictionary entry updates, and exactly one corresponding flip event is recorded.
+- Foundation tests verify same-suit Ace-first ascending order through actual engine actions.
+- Win-condition tests verify that the game is not won before all four Kings reach their correct foundations; the final move sets WON. Undo and redo restore the state on either side of the victory transition.
+- Game-flow tests verify new-game initialization (52 unique cards, 28 tableau, 24 stock, seven columns, and correct visibility) and a deterministic four-King endgame played through GameEngine.
+
+**Deterministic endgame note:** a random shuffled Klondike deal is not guaranteed to be solvable. The win-flow test therefore uses a valid, deterministic near-complete endgame state to test the final legal moves and win transition. It does not pretend to solve a random shuffle automatically.
+
+**Verification:** GitHub Actions reports **85 passing tests** across unit, integration, and offscreen UI coverage. Latest successful run: https://github.com/luqmanbuttcs/dsa-project/actions/runs/41991955530
