@@ -1,26 +1,21 @@
 from random import Random
 
+import pytest
+
 from solitaire.domain.card import Card, Rank, Suit
-from solitaire.domain.game_engine import GameEngine, InvalidMoveError
-from solitaire.domain.game_state import (
-    CardLocation,
-    GameState,
-    GameStatus,
-    TableauColumn,
-    Zone,
-    create_new_game,
-)
-from solitaire.domain.operations import OperationTracker, StructureName
 from solitaire.domain.deck import DeckFactory
+from solitaire.domain.game_engine import GameEngine, InvalidMoveError
+from solitaire.domain.game_state import CardLocation, GameState, TableauColumn, Zone, create_new_game
+from solitaire.domain.operations import OperationTracker, StructureName
 from solitaire.structures.queue import Queue
 from solitaire.structures.stack import Stack
 
 
-def arranged_move_state() -> GameState:
-    """Build a deterministic legal 8H-on-9C move with a hidden card to reveal."""
+def arranged_move_state(destination_card_id: str = "C-9") -> GameState:
+    """Build a deterministic 8H tableau move with a hidden source card."""
     cards = {card.card_id: card for card in DeckFactory.create_standard_deck()}
     eight_hearts = cards.pop("H-8")
-    nine_clubs = cards.pop("C-9")
+    destination_card = cards.pop(destination_card_id)
 
     counts = [5, 5, 4, 4, 4, 3, 3]
     tableau = {}
@@ -28,6 +23,7 @@ def arranged_move_state() -> GameState:
     for column_number, count in enumerate(counts, start=1):
         column_id = f"tableau-{column_number}"
         column = TableauColumn(column_id=column_id)
+
         for _ in range(count - 1):
             card = cards.pop(next(iter(cards)))
             card.turn_face_down()
@@ -36,7 +32,7 @@ def arranged_move_state() -> GameState:
         if column_number == 1:
             top = eight_hearts
         elif column_number == 2:
-            top = nine_clubs
+            top = destination_card
         else:
             top = cards.pop(next(iter(cards)))
 
@@ -80,13 +76,22 @@ def test_draw_three_uses_queue_fifo_and_pushes_to_waste():
     engine = GameEngine(state, tracker)
 
     drawn = engine.draw_from_stock()
+    action_id = engine.move_history[-1].action_id
+    action_events = tracker.events_for_action(action_id)
 
     assert drawn == expected
     assert state.stock.size() == 21
     assert state.waste.size() == 3
     assert state.waste.peek() is expected[-1]
-    assert tracker.count_operation(StructureName.QUEUE, "DEQUEUE") == 3
-    assert tracker.count_operation(StructureName.STACK, "PUSH") == 3
+
+    assert sum(
+        event.structure is StructureName.QUEUE and event.operation == "DEQUEUE"
+        for event in action_events
+    ) == 3
+    assert sum(
+        event.structure is StructureName.STACK and event.operation == "PUSH"
+        for event in action_events
+    ) == 3
 
     for card in expected:
         location = state.card_index[card.card_id]
@@ -164,34 +169,21 @@ def test_move_tableau_run_uses_linked_list_and_updates_dictionary():
 
 
 def test_invalid_tableau_move_does_not_mutate_piles():
-    state = arranged_move_state()
+    state = arranged_move_state(destination_card_id="D-9")
     engine = GameEngine(state)
 
     before_source = state.tableau["tableau-1"].cards_bottom_to_top()
     before_destination = state.tableau["tableau-2"].cards_bottom_to_top()
     before_index = dict(state.card_index)
+    before_move_count = state.move_count
 
-    # 8♥ on 9♣ is legal, so use a same-color 9♦ destination instead.
-    original_destination = state.tableau["tableau-2"]
-    replacement = TableauColumn("tableau-2")
-    old_cards = original_destination.cards_bottom_to_top()
-    for card in old_cards[:-1]:
-        replacement.push(card)
-    nine_diamonds = Card(Suit.DIAMONDS, Rank.NINE, face_up=True)
-    # Replace the card object in the same slot while keeping the deck at 52:
-    # swap it with the old 9♣ and update the stock/index locations.
-    nine_clubs = original_destination.pop()
-    replacement.push(nine_diamonds)
-    state.tableau["tableau-2"] = replacement
-    state.stock.enqueue(nine_clubs)
-    state.card_index.pop(nine_clubs.card_id)
-    state.card_index[nine_diamonds.card_id] = CardLocation(
-        Zone.TABLEAU, "tableau-2", replacement.size() - 1, True
-    )
-    # A duplicate 9D may already exist, so the invariant is not used for this
-    # deliberately invalid-move fixture; the rule must reject before mutation.
+    # 8♥ cannot be placed on 9♦ because both cards are red.
     with pytest.raises(InvalidMoveError):
         engine.move_tableau_to_tableau("tableau-1", "H-8", "tableau-2")
 
     assert state.tableau["tableau-1"].cards_bottom_to_top() == before_source
-    assert state.move_count == 0
+    assert state.tableau["tableau-2"].cards_bottom_to_top() == before_destination
+    assert state.card_index == before_index
+    assert state.move_count == before_move_count
+    assert engine.tracker.events[-1].outcome == "REJECTED"
+    state.assert_invariants()
