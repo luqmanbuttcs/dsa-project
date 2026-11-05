@@ -33,7 +33,7 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Win detection only when all four foundations contain complete, correctly ordered Ace-to-King suit sequences (52 cards total).
 - [x] Undo and redo using two custom Stack history piles and complete logical game snapshots.
 - [x] Structured DSA operation tracker for setup and game actions.
-- [x] Unit tests and GitHub Actions CI (69 tests passing on the current branch).
+- [x] Unit tests and GitHub Actions CI (75 tests passing on the current branch).
 
 ### Phase 4 — Basic PyQt6 User Interface: implemented
 - [x] PyQt6 `QMainWindow` with a green-felt board and navy application shell.
@@ -101,4 +101,4 @@ Verification: GitHub Actions reports **64 passing tests** on the current branch.
 
 ## Phase 4 — User Interface
 
-The basic desktop board is implemented in `src/solitaire/ui/` and starts with `python -m solitaire.main`. It displays the stock, waste, four foundations, and seven tableau columns. Use click-to-select followed by a click on a legal destination; the interface delegates every move to `GameEngine`. Drag-and-drop, animation, and the expanded DSA Monitor are not part of this initial UI milestone.
+The basic desktop board is implemented in `src/solitaire/ui/` and starts with `python -m solitaire.main`. It displays the stock, waste, four foundations, and seven tableau columns. Use click-to-select followed by a click on a legal destination; the interface delegates every move to `GameEngine`. Drag-and-drop, animation, and the expanded DSA Monitor are not part of this initial UI milestone. GitHub Actions verifies the board with **75 passing tests**, including the six offscreen UI smoke tests.
