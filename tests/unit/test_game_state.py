@@ -102,3 +102,48 @@ def test_invariants_reject_face_down_card_above_face_up_tableau_card():
 
     with pytest.raises(AssertionError):
         state.assert_invariants()
+
+
+
+def test_tableau_column_uses_stack_backed_by_linked_list():
+    from solitaire.domain.card import Card, Rank
+    from solitaire.domain.game_state import TableauColumn
+    from solitaire.structures.linked_list import LinkedList
+    from solitaire.structures.stack import Stack
+
+    column = TableauColumn("tableau-test")
+    assert isinstance(column.stack, Stack)
+    assert isinstance(column.linked_list, LinkedList)
+
+    first = Card(Suit.HEARTS, Rank.KING, face_up=True)
+    second = Card(Suit.CLUBS, Rank.QUEEN, face_up=True)
+    column.push(first)
+    column.push(second)
+
+    assert column.peek() is second
+    assert column.cards_bottom_to_top() == [first, second]
+    assert column.linked_list.validate()
+
+
+def test_tableau_column_can_detach_and_attach_face_up_run():
+    from solitaire.domain.card import Card, Rank
+    from solitaire.domain.game_state import TableauColumn
+
+    source = TableauColumn("tableau-source")
+    destination = TableauColumn("tableau-destination")
+    cards = [
+        Card(Suit.SPADES, Rank.KING, face_up=True),
+        Card(Suit.HEARTS, Rank.QUEEN, face_up=True),
+        Card(Suit.CLUBS, Rank.JACK, face_up=True),
+    ]
+    for card in cards:
+        source.push(card)
+
+    detached = source.detach_run_from(1)
+    destination.attach_run(detached)
+
+    assert source.cards_bottom_to_top() == [cards[0]]
+    assert destination.cards_bottom_to_top() == cards[1:]
+    assert detached.is_empty()
+    assert source.linked_list.validate()
+    assert destination.linked_list.validate()
