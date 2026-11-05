@@ -109,13 +109,13 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 ### Milestone 5 — Playable PyQt6 desktop board
 
 **Tasks**
-- Create QMainWindow and main layout.
-- Implement card widgets and green-felt board.
-- Render stock, waste, four foundations, and seven tableau columns.
-- Add New Game, Draw 1/3, Undo, Redo, Settings, Hint placeholder, timer, and move count.
-- Support click/drag interaction and legal destination highlighting.
-- Connect all player actions to GameController/GameEngine.
-- Keep the DSA panel as a compact visible sidebar.
+- [x] Create QMainWindow and main layout.
+- [x] Implement card widgets and green-felt board.
+- [x] Render stock, waste, four foundations, and seven tableau columns.
+- [x] Add New Game, Draw 1/3, Undo, Redo, Hint, timer, score, and move count.
+- [x] Support click/drag interaction and legal destination highlighting.
+- [x] Connect all player actions to GameEngine.
+- [x] Keep the DSA panel as a compact, collapsible right-side dock.
 
 **Exit criteria**
 - The application can be played through the UI without directly editing internal state.
@@ -126,18 +126,18 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 ### Milestone 6 — Card animations and DSA monitor
 
 **Tasks**
-- Animate card travel, stock draw, foundation placement, and card flips.
-- Synchronize animation with action IDs and emitted operation events.
-- Implement the five-structure DSA monitor.
-- Add expandable structure detail views:
+- [x] Animate card travel, stock draw, foundation placement, and card flips.
+- [x] Synchronize visual transitions with the committed GameEngine state and action operation events.
+- [x] Implement the five-structure DSA monitor.
+- [x] Add expandable structure detail views:
   - Array/List deck setup;
   - Stack top and size;
   - Queue front/rear and size;
   - Linked-list node chain;
   - Dictionary card lookup.
-- Add Latest Operation and DSA Operation History.
-- Add separate player Move Log.
-- Add Play Mode / DSA Lab presentation states without duplicating the game engine.
+- [x] Add Latest Operation and timestamped DSA Operation History.
+- [x] Add a separate player Move Log.
+- [x] Add Play Mode / DSA Lab states through the collapsible monitor dock, without duplicating the game engine.
 
 **Exit criteria**
 - The monitor reports actual data-structure operations.
@@ -153,10 +153,11 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 - [x] Define and document a transparent scoring formula before enabling score.
 - [x] Add an elapsed-time display that starts on the first successful action and pauses at victory.
 - [x] Verify that undo/redo restores score but does not rewind elapsed real time.
-- Refine settings, keyboard shortcuts, focus states, and tooltips.
-- Add sound only if time remains.
-- Test resizing, card spacing, panel scrolling, and breathing space.
-- Add restart confirmation and a non-blocking win panel.
+- [x] Refine settings, keyboard shortcuts, focus states, and tooltips (including Reduce motion).
+- [ ] Add sound only if time remains (not needed for the assignment).
+- [x] Test minimum-size resizing, card spacing, panel scrolling, and monitor show/hide behavior in offscreen Qt tests.
+- [x] Add restart confirmation and a non-blocking victory banner.
+- [ ] Complete the final visual/mouse-feel checks on the target Windows display.
 
 **Exit criteria**
 - Optional features do not destabilize core gameplay.
@@ -166,18 +167,20 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 ### Milestone 8 — Final validation and demonstration
 
 **Tasks**
-- Run all unit, integration, and UI smoke tests.
-- Run a full game-flow test.
-- Run card-conservation and Dictionary consistency checks after random valid action sequences.
-- Demonstrate each required data structure using real player actions.
-- Demonstrate undo, redo, and victory.
-- Prepare a concise project walkthrough explaining data structures and complexity.
+- [x] Run all unit, integration, and UI smoke tests in GitHub Actions.
+- [x] Run deterministic initial-deal and endgame flow tests through GameEngine.
+- [x] Run seeded random legal-action sequences and assert card conservation and Dictionary consistency after every action.
+- [x] Document how to demonstrate each required data structure through real player actions.
+- [x] Test Undo, Redo, victory, and Undo/Redo animation state restoration.
+- [x] Prepare the project walkthrough and Windows playtest checklist in `docs/07-demo-and-playtest.md`.
+- [ ] Complete the manual playtest on the user's Windows machine.
 
 **Exit criteria**
-- All mandatory PDF requirements pass.
-- Five required data structures can be located in code and demonstrated in the running application.
-- No known card duplication/loss/state-index bugs.
-- Repository documentation matches implemented behavior.
+- [x] All mandatory PDF requirements are implemented and covered by automated tests.
+- [x] Five required data structures can be located in code and demonstrated in the running application.
+- [x] Seeded legal-action tests preserve all 52 unique cards and exact Dictionary consistency.
+- [x] Repository documentation matches implemented behavior.
+- [ ] Final screen-scaling and real mouse drag/drop check on Windows is completed by the project owner.
 
 ## 3. Test matrix
 
