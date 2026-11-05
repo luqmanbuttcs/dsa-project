@@ -238,10 +238,19 @@ def test_tableau_to_foundation_uses_stacks_and_updates_dictionary():
     assert state.card_index["H-A"].zone is Zone.FOUNDATION
     assert state.card_index["H-A"].pile_id == "foundation-h"
     assert state.card_index[newly_exposed.card_id].face_up
-    assert engine.tracker.count_operation(StructureName.STACK, "POP") == 1
-    assert engine.tracker.count_operation(StructureName.STACK, "PUSH") == 1
-    assert engine.tracker.count_operation(
-        StructureName.LINKED_LIST, "REMOVE_TOP_NODE"
+    action_events = engine.tracker.events_for_action(engine.move_history[-1].action_id)
+    assert sum(
+        event.structure is StructureName.STACK and event.operation == "POP"
+        for event in action_events
+    ) == 1
+    assert sum(
+        event.structure is StructureName.STACK and event.operation == "PUSH"
+        for event in action_events
+    ) == 1
+    assert sum(
+        event.structure is StructureName.LINKED_LIST
+        and event.operation == "REMOVE_TOP_NODE"
+        for event in action_events
     ) == 1
     state.assert_invariants()
 
@@ -259,11 +268,15 @@ def test_waste_to_tableau_uses_stack_and_linked_list():
     location = state.card_index[selected.card_id]
     assert location.zone is Zone.TABLEAU
     assert location.pile_id == "tableau-2"
-    assert engine.tracker.count_operation(
-        StructureName.STACK, "POP"
+    action_events = engine.tracker.events_for_action(engine.move_history[-1].action_id)
+    assert sum(
+        event.structure is StructureName.STACK and event.operation == "POP"
+        for event in action_events
     ) == 1
-    assert engine.tracker.count_operation(
-        StructureName.LINKED_LIST, "APPEND_NODE"
+    assert sum(
+        event.structure is StructureName.LINKED_LIST
+        and event.operation == "APPEND_NODE"
+        for event in action_events
     ) == 1
     state.assert_invariants()
 
@@ -334,7 +347,15 @@ def test_last_foundation_card_triggers_win_detection():
     assert state.status is GameStatus.WON
     assert engine.has_won()
     assert sum(pile.size() for pile in state.foundations.values()) == 52
-    assert engine.tracker.events[-1].operation == "GAME_WON"
+    action_events = engine.tracker.events_for_action(engine.move_history[-1].action_id)
+    assert any(event.operation == "GAME_WON" for event in action_events)
+    state.assert_invariants()
+
+    assert engine.undo()
+    assert state.status is GameStatus.PLAYING
+    assert tableau["tableau-1"].peek().card_id == "H-K"
+    assert engine.redo()
+    assert state.status is GameStatus.WON
     state.assert_invariants()
 
 
