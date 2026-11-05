@@ -345,7 +345,22 @@ class GameEngine:
         self.state.set_draw_count(count_cards)
 
     def has_won(self) -> bool:
-        return sum(pile.size() for pile in self.state.foundations.values()) == 52
+        """Return True only when all 52 cards form four complete suit foundations."""
+        if not self.state.stock.is_empty() or not self.state.waste.is_empty():
+            return False
+        if any(not column.is_empty() for column in self.state.tableau.values()):
+            return False
+
+        for suit, pile in self.state.foundations.items():
+            cards = pile.to_list()
+            if len(cards) != 13:
+                return False
+            if any(card.suit is not suit or not card.face_up for card in cards):
+                return False
+            if [int(card.rank) for card in cards] != list(range(1, 14)):
+                return False
+
+        return True
 
     def valid_tableau_destinations(
         self,
