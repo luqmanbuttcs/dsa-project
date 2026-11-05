@@ -248,7 +248,8 @@ Completed and covered by automated tests:
 - Draw 1/Draw 3, waste handling, and stock recycling.
 - Tableau run moves, waste-to-tableau, and tableau/waste-to-foundation actions.
 - Automatic exposed-card flipping and win detection.
-- Structured DSA operation events for setup and implemented game actions.
+- Full-state undo/redo snapshots for all move types, including stock recycling and newly exposed-card flips.
+- Structured DSA operation events with distinct PLAY, UNDO, REDO, and HISTORY contexts.
 
 GitHub Actions reports **64 passing tests** on the current implementation branch.
 
@@ -270,7 +271,7 @@ The latest game-mechanics pass adds/strengthens:
 - Strict victory check: stock, waste, and all tableau columns must be empty; every foundation must contain exactly Ace through King of its own suit.
 - Automated coverage for correct and corrupted foundation states.
 
-Latest confirmed CI result: **51 passed**.
+Latest confirmed CI result: **67 passed**.
 
 
 ## 8. Phase 1 and Phase 2 implementation status
@@ -294,7 +295,7 @@ Latest confirmed CI result: **51 passed**.
 - Move validation checks rank/color/suit rules and rejects invalid moves before mutation.
 - Exposed cards flip face-up and the Dictionary index is refreshed after successful movement.
 
-**Validation:** GitHub Actions reports **58 passing tests** for the current phase implementation. The PyQt6 UI and Undo/Redo remain later milestones.
+**Validation:** GitHub Actions reports **67 passing tests** for the current phase implementation. The PyQt6 UI and related interaction/monitor work remain later milestones.
 
 
 ## 9. Phase 3 — Game Logic implementation status
@@ -304,11 +305,12 @@ Latest confirmed CI result: **51 passed**.
 - Existing `RuleValidator` and `GameEngine` validate tableau and foundation actions before mutation.
 - Stock supports Draw 1 / Draw 3 through the FIFO Queue, including waste recycling.
 - Newly exposed tableau cards are flipped face-up and their Dictionary locations are refreshed.
-- A frozen `GameSnapshot` captures card IDs by zone/pile, exact pile order, each card's face state, draw mode, status, move count, elapsed time, score, and player move history.
+- A frozen `GameSnapshot` captures card IDs by zone/pile, exact pile order, each card's face state, game status, move count, score, and the minimal move-log tail needed for round-trip restoration.
 - The custom `undo_stack` and `redo_stack` hold snapshots. Undo/redo rebuild zones through the project's actual Stack and Queue methods and restore linked-list-backed tableau columns.
 - Undo also works after a win; redo can restore the WON state.
 - A new successful move after undo clears the redo branch. Failed moves do not create undo entries.
 - The operation log remains append-only. Undo and redo emit their own action contexts; internal history-stack maintenance is recorded separately so it does not pollute a player's move-level trace.
+- Undo does not rewind elapsed real time or override the current Draw 1 / Draw 3 preference; those are not card-move state.
 
 **Verification:** GitHub Actions completed with **64 passing tests**. New coverage includes tableau move/flip round trips, Draw 3 order and face state, stock recycle round trips, foundation movement, redo invalidation, and empty-history behavior.
 
