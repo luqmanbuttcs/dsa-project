@@ -272,3 +272,27 @@ The latest game-mechanics pass adds/strengthens:
 - Automated coverage for correct and corrupted foundation states.
 
 Latest confirmed CI result: **51 passed**.
+
+
+## 8. Phase 1 and Phase 2 implementation status
+
+**Completed on `feat/core-data-structures`:**
+
+### Phase 1 — Card and Deck
+- Card entity holds Suit, Rank, and face_up state.
+- Card validates its suit/rank/visibility attribute types.
+- DeckFactory creates the 52 unique suit/rank combinations.
+- DeckFactory validates the exact standard deck before shuffling.
+- Shuffling operates in place on the Array/List representation.
+- Initial deal produces seven tableau piles sized 1 through 7, with only each pile's last card face-up, and 24 cards in stock.
+
+### Phase 2 — Tableau and Foundation
+- TableauColumn exposes Stack operations for push/pop/peek.
+- Its Stack uses the custom doubly linked list as the canonical node storage.
+- TableauColumn has explicit detach-run and attach-run methods.
+- Foundations are four suit-keyed Stack piles.
+- GameEngine implements tableau-to-tableau, waste-to-tableau, tableau-to-foundation, and waste-to-foundation movement.
+- Move validation checks rank/color/suit rules and rejects invalid moves before mutation.
+- Exposed cards flip face-up and the Dictionary index is refreshed after successful movement.
+
+**Validation:** GitHub Actions reports **58 passing tests** for the current phase implementation. The PyQt6 UI and Undo/Redo remain later milestones.
