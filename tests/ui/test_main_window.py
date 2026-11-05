@@ -646,6 +646,8 @@ def build_four_king_endgame_state() -> GameState:
 def test_nonblocking_victory_panel_appears_and_undo_hides_it(app):
     engine = GameEngine(build_four_king_endgame_state())
     window = MainWindow(engine)
+    window.show()
+    app.processEvents()
     assert not window.victory_panel.isVisible()
 
     for index, suit in enumerate(Suit, start=1):
