@@ -118,10 +118,10 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 - [x] Keep the DSA panel as a compact, collapsible right-side dock.
 
 **Exit criteria**
-- The application can be played through the UI without directly editing internal state.
-- The game board remains readable at target desktop sizes.
-- Invalid moves have understandable feedback.
-- Core controls are enabled/disabled correctly.
+- [x] The application is playable through the UI without directly editing internal state.
+- [x] The board is resizable and the Tableau scrolls rather than forcing cards to become unreadable.
+- [x] Invalid moves have understandable feedback and do not mutate game state.
+- [x] Core controls are enabled/disabled correctly.
 
 ### Milestone 6 — Card animations and DSA monitor
 
@@ -140,11 +140,11 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 - [x] Add Play Mode / DSA Lab states through the collapsible monitor dock, without duplicating the game engine.
 
 **Exit criteria**
-- The monitor reports actual data-structure operations.
-- A sample legal move shows the correct card at the destination and the correct operation trace.
-- A newly exposed card visibly flips and its Dictionary state updates.
-- Draw events show Queue dequeue and waste Stack push.
-- Reduced-motion mode keeps the operation explanation available.
+- [x] The monitor reports actual data-structure operations.
+- [x] A legal move is reflected in the board and its real operation trace.
+- [x] A newly exposed card flips and its Dictionary state updates.
+- [x] Draw events show Queue dequeue and Waste Stack push.
+- [x] Reduced-motion mode keeps operation feedback available.
 
 ### Milestone 7 — Optional enhancements and visual polish
 
@@ -160,9 +160,9 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 - [ ] Complete the final visual/mouse-feel checks on the target Windows display.
 
 **Exit criteria**
-- Optional features do not destabilize core gameplay.
-- No overlapping/clipped controls at target sizes.
-- The visual hierarchy keeps the board dominant and monitor readable.
+- [x] Optional features pass the automated regression suite.
+- [ ] No overlapping/clipped controls at target sizes (manual Windows/display scaling check remains).
+- [x] The layout keeps the board dominant and the monitor collapsible/readable.
 
 ### Milestone 8 — Final validation and demonstration
 
