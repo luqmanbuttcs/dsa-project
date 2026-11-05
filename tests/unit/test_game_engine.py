@@ -274,3 +274,59 @@ def test_waste_to_foundation_moves_ace_using_stacks():
     assert state.foundations[Suit.SPADES].peek() is selected
     assert state.card_index[selected.card_id].zone is Zone.FOUNDATION
     state.assert_invariants()
+
+
+def test_last_foundation_card_triggers_win_detection():
+    from solitaire.domain.card import Rank
+    from solitaire.domain.game_state import GameStatus
+
+    full_deck = DeckFactory.create_standard_deck()
+    cards = {card.card_id: card for card in full_deck}
+    stock = Queue()
+    waste = Stack()
+    tableau = {
+        f"tableau-{number}": TableauColumn(f"tableau-{number}")
+        for number in range(1, 8)
+    }
+    foundations = {suit: Stack() for suit in Suit}
+
+    for suit in Suit:
+        for rank in Rank:
+            card = cards[f"{suit.code}-{rank.label}"]
+            card.turn_face_up()
+            if suit is Suit.HEARTS and rank is Rank.KING:
+                tableau["tableau-1"].push(card)
+            else:
+                foundations[suit].push(card)
+
+    index = {}
+    for suit, pile in foundations.items():
+        pile_id = f"foundation-{suit.code.lower()}"
+        for position, card in enumerate(pile.to_list()):
+            index[card.card_id] = CardLocation(
+                Zone.FOUNDATION, pile_id, position, card.face_up
+            )
+
+    king = tableau["tableau-1"].peek()
+    index[king.card_id] = CardLocation(
+        Zone.TABLEAU, "tableau-1", 0, king.face_up
+    )
+
+    state = GameState(
+        stock=stock,
+        waste=waste,
+        tableau=tableau,
+        foundations=foundations,
+        card_index=index,
+    )
+    state.assert_invariants()
+    engine = GameEngine(state)
+
+    moved = engine.move_tableau_to_foundation("tableau-1", Suit.HEARTS)
+
+    assert moved.card_id == "H-K"
+    assert state.status is GameStatus.WON
+    assert engine.has_won()
+    assert sum(pile.size() for pile in state.foundations.values()) == 52
+    assert engine.tracker.events[-1].operation == "GAME_WON"
+    state.assert_invariants()
