@@ -487,7 +487,30 @@ class MainWindow(QMainWindow):
         self._refresh_board()
         self._animate_transitions(move_visuals, flip_visual)
 
+    def _capture_history_visuals(self, event, *, redo: bool = False):
+        """Capture visible cards before undo/redo so history actions animate too."""
+        if event is None:
+            return {}
+        if event.action_type == "DRAW":
+            if redo:
+                stock_visual = self._capture_widget_visual(self.stock_button)
+                if stock_visual is not None:
+                    return {
+                        card_id: stock_visual for card_id in event.card_ids
+                    }
+            return {}
+
+        visuals = {}
+        for card_id in event.card_ids:
+            button = self._find_card_button(card_id)
+            visual = self._capture_widget_visual(button) if button else None
+            if visual is not None:
+                visuals[card_id] = visual
+        return visuals
+
     def _undo(self) -> None:
+        event = self.engine.move_history[-1] if self.engine.move_history else None
+        visuals = self._capture_history_visuals(event)
         if not self.engine.undo():
             self._set_status("There is no move to undo.")
             return
@@ -496,8 +519,15 @@ class MainWindow(QMainWindow):
         self._clear_selection()
         self._set_status("Last move undone.")
         self._refresh_board()
+        self._animate_move_visuals(visuals)
 
     def _redo(self) -> None:
+        redo_snapshot = (
+            self.engine.redo_stack.peek()
+            if self.engine.can_redo else None
+        )
+        event = redo_snapshot.last_move_event if redo_snapshot else None
+        visuals = self._capture_history_visuals(event, redo=True)
         if not self.engine.redo():
             self._set_status("There is no move to redo.")
             return
@@ -506,9 +536,16 @@ class MainWindow(QMainWindow):
         self._clear_selection()
         self._set_status("Last move redone.")
         self._refresh_board()
+        self._animate_move_visuals(visuals)
 
     def _new_game(self) -> None:
-        if self.engine.state.move_count or self.engine.can_undo:
+        if (
+            self.engine.state.move_count
+            or self.engine.can_undo
+            or self.engine.can_redo
+            or self.engine.state.score
+            or self._elapsed_seconds()
+        ):
             answer = QMessageBox.question(
                 self,
                 "Start a new game?",
