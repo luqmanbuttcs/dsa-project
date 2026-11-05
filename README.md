@@ -30,9 +30,9 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Draw 1 / Draw 3, waste pile handling, and stock recycling.
 - [x] Tableau run transfer, waste-to-tableau, and tableau/waste-to-foundation moves.
 - [x] Automatic face-up flip of a newly exposed tableau card.
-- [x] Win detection when all 52 cards reach foundations.
+- [x] Win detection only when all four foundations contain complete, correctly ordered Ace-to-King suit sequences (52 cards total).
 - [x] Structured DSA operation tracker for setup and game actions.
-- [x] Unit tests and GitHub Actions CI (47 tests passing on the current branch).
+- [x] Unit tests and GitHub Actions CI (51 tests passing on the current branch).
 
 ### Still to implement
 - [ ] Undo and Redo history stacks.
