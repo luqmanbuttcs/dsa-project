@@ -113,6 +113,8 @@ class MainWindow(QMainWindow):
             [self.dsa_monitor_dock], [370], Qt.Orientation.Horizontal
         )
         self.dsa_monitor.set_mode("play")
+        self.dsa_monitor_button.setChecked(True)
+        self.dsa_monitor_action.setChecked(True)
         self._install_shortcuts()
         self._clock_timer = QTimer(self)
         self._clock_timer.setInterval(1000)
@@ -302,7 +304,7 @@ class MainWindow(QMainWindow):
         tableau_content.setStyleSheet("background: transparent;")
         tableau_layout = QHBoxLayout(tableau_content)
         tableau_layout.setContentsMargins(0, 0, 0, 0)
-        tableau_layout.setSpacing(12)
+        tableau_layout.setSpacing(22)
         tableau_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
         for column_number in range(1, 8):
@@ -337,8 +339,8 @@ class MainWindow(QMainWindow):
         log_title.setStyleSheet("font-size: 13px; font-weight: 900; color: #F6FAFF;")
         self.move_log = QListWidget()
         self.move_log.setObjectName("move-log")
-        self.move_log.setMaximumHeight(104)
-        self.move_log.setMinimumHeight(75)
+        self.move_log.setMaximumHeight(116)
+        self.move_log.setMinimumHeight(82)
         self.move_log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.move_log.setStyleSheet(
             "QListWidget { background: rgba(3, 24, 39, 145); color: #EFF6FD; "
