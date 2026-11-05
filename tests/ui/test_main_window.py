@@ -303,20 +303,23 @@ def test_score_label_and_timer_track_actions_and_survive_undo(app, monkeypatch):
 
 
 
-def _make_drop_event(card_id: str, source_pile: str) -> QDropEvent:
+def _make_drop_event(
+    card_id: str, source_pile: str
+) -> tuple[QDropEvent, QMimeData]:
     mime = QMimeData()
     mime.setData(
         "application/x-klondike-card",
-        QByteArray(f"{card_id}\t{source_pile}".encode("utf-8")),
+        QByteArray(f"{card_id}\\t{source_pile}".encode("utf-8")),
     )
-    return QDropEvent(
+    event = QDropEvent(
         QPointF(12, 12),
         Qt.DropAction.MoveAction,
         mime,
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
-
+    # QDropEvent stores a borrowed QMimeData pointer; retain the wrapper too.
+    return event, mime
 
 def test_tableau_drop_event_moves_card_through_game_engine(app):
     engine = GameEngine(build_tableau_move_state())
@@ -324,7 +327,7 @@ def test_tableau_drop_event_moves_card_through_game_engine(app):
     window.show()
     app.processEvents()
 
-    event = _make_drop_event("H-8", "tableau-1")
+    event, mime = _make_drop_event("H-8", "tableau-1")
     window.tableau_widgets["tableau-2"].dropEvent(event)
 
     assert event.isAccepted()
@@ -342,7 +345,7 @@ def test_foundation_drop_event_moves_waste_card_through_engine(app):
     window.show()
     app.processEvents()
 
-    event = _make_drop_event("H-A", "waste")
+    event, mime = _make_drop_event("H-A", "waste")
     window.foundation_widgets[Suit.HEARTS].dropEvent(event)
 
     assert event.isAccepted()
