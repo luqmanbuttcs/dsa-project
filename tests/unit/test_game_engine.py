@@ -241,8 +241,8 @@ def test_tableau_to_foundation_uses_stacks_and_updates_dictionary():
 
 
 def test_waste_to_tableau_uses_stack_and_linked_list():
-    state = arranged_move_state()
-    selected = move_card_from_stock_to_waste(state, "D-8")
+    state = arranged_move_state(destination_card_id="D-9")
+    selected = move_card_from_stock_to_waste(state, "C-8")
     engine = GameEngine(state)
 
     moved = engine.move_waste_to_tableau("tableau-2")
@@ -264,13 +264,13 @@ def test_waste_to_tableau_uses_stack_and_linked_list():
 
 def test_waste_to_foundation_moves_ace_using_stacks():
     state = arranged_move_state()
-    selected = move_card_from_stock_to_waste(state, "H-A")
+    selected = move_card_from_stock_to_waste(state, "S-A")
     engine = GameEngine(state)
 
-    moved = engine.move_waste_to_foundation(Suit.HEARTS)
+    moved = engine.move_waste_to_foundation(Suit.SPADES)
 
     assert moved is selected
     assert state.waste.is_empty()
-    assert state.foundations[Suit.HEARTS].peek() is selected
+    assert state.foundations[Suit.SPADES].peek() is selected
     assert state.card_index[selected.card_id].zone is Zone.FOUNDATION
     state.assert_invariants()
