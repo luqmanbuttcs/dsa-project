@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QPainter, QPen, QColor, QFont
-from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QWidget
+from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QHBoxLayout, QPushButton, QWidget
 
 from solitaire.domain.card import Card, Suit
 from solitaire.domain.game_state import TableauColumn
 from solitaire.ui.card_widget import CardButton
+from solitaire.ui.theme import paint_card_back
 
 
 CARD_WIDTH = CardButton.CARD_WIDTH
@@ -21,17 +22,14 @@ class StockButton(QPushButton):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("stock-button")
-        self.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
+        self.setFixedSize(CARD_WIDTH, CARD_HEIGHT + 28)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._stock_count = 24
         self._can_recycle = False
         self.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #0B68B6, stop:0.5 #064783, stop:1 #032D59); color: #F4F9FF; "
-            "border: 2px solid #B7D8F4; border-radius: 9px; "
-            "font-size: 16px; font-weight: 800; }"
-            "QPushButton:hover { border: 2px solid #FFD65A; }"
-            "QPushButton:disabled { color: #A9C1D5; border-color: #6687A5; }"
+            "QPushButton { background: transparent; color: transparent; border: none; padding: 0; }"
+            "QPushButton:hover { background: transparent; }"
         )
 
     def set_stock(self, count: int, can_recycle: bool) -> None:
@@ -51,24 +49,23 @@ class StockButton(QPushButton):
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
         painter = QPainter(self)
+        paint_card_back(
+            painter,
+            QRectF(0, 0, CARD_WIDTH, CARD_HEIGHT),
+            selected=False,
+            radius=9.0,
+        )
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        frame = self.rect().adjusted(5, 5, -5, -5)
-        painter.setPen(QPen(QColor("#D8ECFF"), 1.2))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(frame, 7, 7)
-        painter.setPen(QPen(QColor("#8CC3EF"), 0.8))
-        painter.drawRoundedRect(frame.adjusted(5, 5, -5, -5), 5, 5)
-        painter.setPen(QPen(QColor("#B4D9F7"), 0.9))
-        w, h = self.width(), self.height()
-        painter.drawLine(14, 16, w - 14, h - 16)
-        painter.drawLine(w - 14, 16, 14, h - 16)
-        painter.setFont(QFont("Georgia", 30, QFont.Weight.Bold))
-        painter.setPen(QColor("#FFFFFF"))
-        center_symbol = "♠" if self._stock_count else ("↻" if self._can_recycle else "")
-        painter.drawText(self.rect().adjusted(0, 13, 0, -23), Qt.AlignmentFlag.AlignCenter, center_symbol)
-        painter.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        count_label = str(self._stock_count) if self._stock_count else ("Recycle" if self._can_recycle else "Empty")
-        painter.drawText(self.rect().adjusted(0, self.height() - 34, 0, -5), Qt.AlignmentFlag.AlignCenter, count_label)
+        pill = QRectF(5, CARD_HEIGHT + 4, CARD_WIDTH - 10, 20)
+        painter.setPen(QPen(QColor("#123A31"), 1.0))
+        painter.setBrush(QColor("#052E25"))
+        painter.drawRoundedRect(pill, 9, 9)
+        painter.setPen(QColor("#F1FFF4"))
+        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        label = str(self._stock_count) + " cards" if self._stock_count else (
+            "Recycle" if self._can_recycle else "Empty"
+        )
+        painter.drawText(pill, Qt.AlignmentFlag.AlignCenter, label)
         painter.end()
 
 
@@ -145,10 +142,10 @@ class FoundationSlot(QWidget):
             ink = "#FF6677" if self.suit in (Suit.HEARTS, Suit.DIAMONDS) else "#A5E8C0"
             button.setStyleSheet(
                 "QPushButton { "
-                f"background: rgba(0, 43, 25, 0.38); color: {ink}; "
-                "border: 2px solid rgba(109, 255, 107, 0.82); "
-                "border-radius: 10px; font-size: 38px; font-weight: 800; }"
-                "QPushButton:hover { border: 3px solid #FFD65A; background: rgba(13, 93, 48, 0.62); }"
+                f"background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 rgba(15, 88, 48, 0.76), stop:1 rgba(0, 43, 25, 0.90)); color: {ink}; "
+                "border: 2px solid rgba(120, 255, 105, 0.94); "
+                "border-radius: 10px; font-size: 40px; font-weight: 800; }"
+                "QPushButton:hover { border: 3px solid #FFD65A; background: rgba(13, 93, 48, 0.82); }"
             )
             button.setAccessibleName(f"Empty {self.suit.value} foundation. Click to place a card.")
         else:
@@ -160,6 +157,12 @@ class FoundationSlot(QWidget):
         button.clicked.connect(lambda: self.selected.emit(self.suit))
         self._button = button
         self._base_button_style = button.styleSheet()
+        if card is None:
+            glow = QGraphicsDropShadowEffect(button)
+            glow.setBlurRadius(18)
+            glow.setColor(QColor("#58FF65"))
+            glow.setOffset(0, 0)
+            button.setGraphicsEffect(glow)
         self._apply_drop_style()
         button.setParent(self)
         button.setGeometry(0, 0, CARD_WIDTH, CARD_HEIGHT)
@@ -212,8 +215,8 @@ class TableauColumnWidget(QWidget):
     card_drag_started = pyqtSignal(str, str)
     card_drag_finished = pyqtSignal()
 
-    FACE_DOWN_OFFSET = 25
-    FACE_UP_OFFSET = 35
+    FACE_DOWN_OFFSET = 27
+    FACE_UP_OFFSET = 40
 
     def __init__(self, column_id: str, parent=None) -> None:
         super().__init__(parent)
