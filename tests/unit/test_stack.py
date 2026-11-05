@@ -1,5 +1,6 @@
 import pytest
 
+from solitaire.structures.linked_list import LinkedList
 from solitaire.structures.stack import Stack
 
 
@@ -45,3 +46,28 @@ def test_pop_and_peek_empty_stack_raise():
 
     with pytest.raises(IndexError):
         stack.peek()
+
+
+def test_stack_can_detach_and_attach_a_tableau_run():
+    source = Stack[str]()
+    destination = Stack[str]()
+
+    for card in ["K", "Q", "J", "10"]:
+        source.push(card)
+
+    backing = source.linked_list
+    first = backing.node_at(2)
+    last = backing.tail
+    assert last is not None
+
+    run = source.detach_run(first, last)
+
+    assert source.to_list() == ["K", "Q"]
+    assert run.to_list() == ["J", "10"]
+
+    destination.attach_run(run)
+
+    assert destination.to_list() == ["J", "10"]
+    assert run.is_empty()
+    assert source.linked_list.validate()
+    assert destination.linked_list.validate()
