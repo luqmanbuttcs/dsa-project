@@ -132,7 +132,11 @@ class GameState:
         assert self.card_index == expected_locations, "Card dictionary is out of sync with piles"
 
 
-def create_new_game(\n    rng: Random | None = None,\n    draw_count: int = 1,\n    tracker: OperationTracker | None = None,\n) -> GameState:
+def create_new_game(
+    rng: Random | None = None,
+    draw_count: int = 1,
+    tracker: OperationTracker | None = None,
+) -> GameState:
     """Create, shuffle, deal, and index a fresh 52-card Klondike game."""
     if draw_count not in (1, 3):
         raise ValueError("Draw count must be either 1 or 3")
