@@ -83,7 +83,7 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 - Define and test stock recycle behavior as a configurable assumption.
 
 **Exit criteria**
-- Legal and illegal move test matrix passes.
+- Legal and illegal move test matrix passes, including multi-card tableau sequence transfers.
 - Failed moves do not mutate state.
 - Card count and Dictionary invariants pass after every successful action.
 - Deterministic win-state test is detected correctly.
@@ -250,7 +250,7 @@ Completed and covered by automated tests:
 - Automatic exposed-card flipping and win detection.
 - Structured DSA operation events for setup and implemented game actions.
 
-GitHub Actions reports **47 passing tests** on the current implementation branch.
+GitHub Actions reports **51 passing tests** on the current implementation branch.
 
 Still pending:
 - Undo/Redo stacks and reversible action records.
@@ -259,3 +259,16 @@ Still pending:
 - Optional Hint, timer/score behavior, and final demonstration preparation.
 
 This snapshot describes verified implementation status, not a change to the original assignment scope.
+
+
+### Game-mechanics verification addendum
+
+The latest game-mechanics pass adds/strengthens:
+- Multi-card face-up tableau suffix transfer with order preservation.
+- Tableau visibility invariant: face-down cards cannot appear above a face-up card.
+- Stock cards must remain face-down and waste/foundation cards face-up.
+- Foundation invariant: each suit pile is a correctly ordered Ace-first prefix.
+- Strict victory check: stock, waste, and all tableau columns must be empty; every foundation must contain exactly Ace through King of its own suit.
+- Automated coverage for correct and corrupted foundation states.
+
+Latest confirmed CI result: **51 passed**.
