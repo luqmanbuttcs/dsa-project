@@ -8,7 +8,10 @@ from random import Random
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QByteArray, QMimeData, QPointF, Qt
+from PyQt6.QtGui import QDropEvent
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from solitaire.domain.card import Card, Rank, Suit
 from solitaire.domain.deck import DeckFactory
@@ -225,7 +228,12 @@ def test_tableau_card_clicks_select_and_move_face_up_card(app):
     window.close()
 
 
-def test_new_game_reinitializes_all_piles_and_history(app):
+def test_new_game_reinitializes_all_piles_and_history(app, monkeypatch):
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+    )
     engine = GameEngine(create_new_game(Random(1204)))
     window = MainWindow(engine)
     window.stock_button.click()
@@ -290,4 +298,142 @@ def test_score_label_and_timer_track_actions_and_survive_undo(app, monkeypatch):
     assert window.engine.state.score == 0
     assert window.engine.state.elapsed_seconds == 0
     assert window.timer_label.text() == "TIME  00:00"
+    window.close()
+
+
+
+def _make_drop_event(card_id: str, source_pile: str) -> QDropEvent:
+    mime = QMimeData()
+    mime.setData(
+        "application/x-klondike-card",
+        QByteArray(f"{card_id}\t{source_pile}".encode("utf-8")),
+    )
+    return QDropEvent(
+        QPointF(12, 12),
+        Qt.DropAction.MoveAction,
+        mime,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+
+
+def test_tableau_drop_event_moves_card_through_game_engine(app):
+    engine = GameEngine(build_tableau_move_state())
+    window = MainWindow(engine)
+    window.show()
+    app.processEvents()
+
+    event = _make_drop_event("H-8", "tableau-1")
+    window.tableau_widgets["tableau-2"].dropEvent(event)
+
+    assert event.isAccepted()
+    assert engine.state.tableau["tableau-1"].peek().card_id == "C-7"
+    assert engine.state.tableau["tableau-2"].peek().card_id == "H-8"
+    assert engine.state.move_count == 1
+    assert window.status_label.text() == "Card dropped successfully."
+    engine.state.assert_invariants()
+    window.close()
+
+
+def test_foundation_drop_event_moves_waste_card_through_engine(app):
+    engine = GameEngine(build_waste_ace_state())
+    window = MainWindow(engine)
+    window.show()
+    app.processEvents()
+
+    event = _make_drop_event("H-A", "waste")
+    window.foundation_widgets[Suit.HEARTS].dropEvent(event)
+
+    assert event.isAccepted()
+    assert engine.state.waste.is_empty()
+    assert engine.state.foundations[Suit.HEARTS].peek().card_id == "H-A"
+    assert engine.state.score == 10
+    engine.state.assert_invariants()
+    window.close()
+
+
+def test_drag_preview_highlights_only_currently_legal_destinations(app):
+    engine = GameEngine(build_tableau_move_state())
+    window = MainWindow(engine)
+
+    window._start_drag_preview("H-8", "tableau-1")
+
+    assert window._drag_destinations == {"tableau-2"}
+    assert window.tableau_widgets["tableau-2"]._drag_highlighted
+    assert not window.tableau_widgets["tableau-1"]._drag_highlighted
+    assert not window.foundation_widgets[Suit.HEARTS]._drag_highlighted
+
+    window._clear_drag_preview()
+    assert not any(
+        widget._drag_highlighted for widget in window.tableau_widgets.values()
+    )
+    window.close()
+
+
+def test_dsa_monitor_shows_real_operations_and_current_structure_state(app):
+    engine = GameEngine(create_new_game(Random(4501)))
+    window = MainWindow(engine)
+
+    assert window.dsa_monitor_dock.isVisible()
+    assert window.dsa_monitor.count_table.rowCount() == 5
+    assert "24 cards" in window.dsa_monitor.count_table.item(2, 1).text()
+    assert "52 / 52 entries" == window.dsa_monitor.count_table.item(4, 1).text()
+
+    window.stock_button.click()
+    assert "Queue" in window.dsa_monitor.latest_operation.text()
+    assert "DEQUEUE" in window.dsa_monitor.latest_operation.text()
+    assert window.dsa_monitor.operation_history.count() > 0
+
+    queue_details = window.dsa_monitor.detail_views[
+        __import__("solitaire.domain.operations", fromlist=["StructureName"]).StructureName.QUEUE
+    ].toPlainText()
+    assert "Front / next to draw" in queue_details
+    assert "Stock Queue" in queue_details
+    window.close()
+
+
+def test_card_move_and_flip_animations_complete_and_restore_target_widgets(app):
+    engine = GameEngine(build_tableau_move_state())
+    window = MainWindow(engine)
+    window.show()
+    app.processEvents()
+
+    visuals, flip_visual = window._capture_move_visuals("H-8", "tableau-1")
+    engine.move_tableau_to_tableau("tableau-1", "H-8", "tableau-2")
+    window._refresh_board()
+    window._animate_transitions(visuals, flip_visual)
+    QTest.qWait(420)
+
+    moved_button = window._find_card_button("H-8")
+    flipped_button = window._find_card_button("C-7")
+    assert moved_button is not None and moved_button.isVisible()
+    assert flipped_button is not None and flipped_button.isVisible()
+    assert not window._active_animations
+    assert flipped_button.text() == "7\n♣"
+    window.close()
+
+
+def test_reduced_motion_skips_card_animation(app):
+    engine = GameEngine(build_tableau_move_state())
+    window = MainWindow(engine)
+    window.show()
+    app.processEvents()
+    window.reduce_motion_check.setChecked(True)
+
+    visuals, flip_visual = window._capture_move_visuals("H-8", "tableau-1")
+    engine.move_tableau_to_tableau("tableau-1", "H-8", "tableau-2")
+    window._refresh_board()
+    window._animate_transitions(visuals, flip_visual)
+    QTest.qWait(250)
+
+    assert not window._active_animations
+    assert window._find_card_button("H-8").isVisible()
+    assert window._find_card_button("C-7").isVisible()
+    window.close()
+
+
+def test_keyboard_shortcuts_are_installed(app):
+    window = MainWindow(GameEngine(create_new_game(Random(4502))))
+    shortcuts = {action.shortcut().toString() for action in window._shortcut_actions}
+    assert {"Ctrl+Z", "Ctrl+Y", "Ctrl+N", "H", "Space"} <= shortcuts
     window.close()
