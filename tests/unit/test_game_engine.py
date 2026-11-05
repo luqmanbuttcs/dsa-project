@@ -71,7 +71,7 @@ def arranged_move_state(destination_card_id: str = "C-9") -> GameState:
 
 def test_draw_three_uses_queue_fifo_and_pushes_to_waste():
     tracker = OperationTracker()
-    state = create_new_game(Random(101), tracker=tracker)
+    state = create_new_game(Random(101), draw_count=3, tracker=tracker)
     expected = state.stock.to_list()[:3]
     engine = GameEngine(state, tracker)
 
