@@ -61,7 +61,7 @@ class RuleValidator:
             if int(lower_card.rank) != int(upper_card.rank) + 1:
                 return ValidationResult.reject(MoveError.INVALID_SEQUENCE_ORDER)
             if lower_card.color is upper_card.color:
-                return ValidationResult.reject(MoveError.INVALID_SEQUENCE_ORDER)
+                return ValidationResult.reject(MoveError.SAME_TABLEAU_COLOR)
 
         moving_card = run[0]
 
