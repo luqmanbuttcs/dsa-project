@@ -72,7 +72,9 @@ class DSAMonitorPanel(QWidget):
             2, QHeaderView.ResizeMode.ResizeToContents
         )
         for row, (structure, _) in enumerate(self.STRUCTURES):
-            self.count_table.setItem(row, 0, QTableWidgetItem(structure.value))
+            name_item = QTableWidgetItem(structure.value)
+            name_item.setToolTip(dict(self.STRUCTURES)[structure])
+            self.count_table.setItem(row, 0, name_item)
             self.count_table.setItem(row, 1, QTableWidgetItem("—"))
             self.count_table.setItem(row, 2, QTableWidgetItem("0"))
         overview_layout.addWidget(self.count_table)
@@ -147,15 +149,14 @@ class DSAMonitorPanel(QWidget):
         tableau_cards = sum(column.size() for column in state.tableau.values())
         foundation_cards = sum(pile.size() for pile in state.foundations.values())
         stack_current = (
-            f"tableau {tableau_cards}, waste {state.waste.size()}, "
-            f"foundations {foundation_cards}, history "
-            f"{engine.undo_stack.size()}/{engine.redo_stack.size()}"
+            f"T:{tableau_cards} W:{state.waste.size()} F:{foundation_cards} "
+            f"H:{engine.undo_stack.size()}/{engine.redo_stack.size()}"
         )
         queue_cards = state.stock.to_list()
         queue_current = (
-            f"{state.stock.size()} cards; front {self._card_label(queue_cards[0])}; "
-            f"rear {self._card_label(queue_cards[-1])}"
-            if queue_cards else "0 cards; front/rear Empty"
+            f"{state.stock.size()} | F:{queue_cards[0].card_id} "
+            f"R:{queue_cards[-1].card_id}"
+            if queue_cards else "0 | F:— R:—"
         )
         selected_column_id = (
             selected_pile_id
@@ -171,7 +172,7 @@ class DSAMonitorPanel(QWidget):
             StructureName.STACK: stack_current,
             StructureName.QUEUE: queue_current,
             StructureName.LINKED_LIST: (
-                f"{selected_column_id}: {linked.size()} nodes"
+                f"{selected_column_id.rsplit('-', 1)[-1]}: {linked.size()} nodes"
             ),
             StructureName.DICTIONARY: dictionary_current,
         }
