@@ -149,8 +149,10 @@ Do not begin with the full visual interface. A polished board built on unreliabl
 ### Milestone 7 — Optional enhancements and visual polish
 
 **Tasks**
-- Implement Hint using legal-move enumeration.
-- Define a transparent scoring formula before enabling score.
+- [x] Implement Hint using legal-move enumeration.
+- [x] Define and document a transparent scoring formula before enabling score.
+- [x] Add an elapsed-time display that starts on the first successful action and pauses at victory.
+- [x] Verify that undo/redo restores score but does not rewind elapsed real time.
 - Refine settings, keyboard shortcuts, focus states, and tooltips.
 - Add sound only if time remains.
 - Test resizing, card spacing, panel scrolling, and breathing space.
@@ -349,3 +351,36 @@ Automated integration and unit tests now cover the requested validation checklis
 **Deterministic endgame note:** a random shuffled Klondike deal is not guaranteed to be solvable. The win-flow test therefore uses a valid, deterministic near-complete endgame state to test the final legal moves and win transition. It does not pretend to solve a random shuffle automatically.
 
 **Verification:** GitHub Actions reports **85 passing tests** across unit, integration, and offscreen UI coverage. Latest successful run: https://github.com/luqmanbuttcs/dsa-project/actions/runs/41991955530
+
+
+## 12. Bonus Features — implemented
+
+The optional Undo/Redo, Hint, Timer, and Scoring features are implemented on the active feature branch.
+
+### Undo/Redo
+- The existing two custom Stack history piles remain the single undo/redo mechanism.
+- Score is part of each logical game snapshot, so undo restores the prior score and redo restores the earned score.
+- Elapsed real time and the Draw 1 / Draw 3 preference are deliberately not rewound by undo/redo.
+
+### Hint system
+- `GameEngine.find_hints()` enumerates legal moves using the same `RuleValidator` used by real player actions.
+- The hint list prioritizes foundation moves, then waste-to-tableau moves, then tableau moves that expose a hidden card, followed by other legal tableau rearrangements.
+- When no visible move is legal, it suggests drawing from Stock or recycling Waste.
+- Hint generation is read-only: it does not move cards, change the Dictionary, increment the move count, or append operation/history events.
+- The PyQt6 Hint control selects the suggested source card and explains the destination. Repeated clicks cycle through the current legal suggestions.
+
+### Timer and scoring
+- The timer begins after the first successful player action, not while the player is idle on a new deal.
+- It pauses when all cards reach the foundations, resumes if the final winning move is undone, and resets on New Game.
+- The timer is based on a monotonic clock and the elapsed seconds are not part of the undo snapshot.
+- Scoring is intentionally simple and disclosed in the UI/documentation:
+  - +10 points for a card moved to a foundation.
+  - +5 points for moving the Waste top card to the Tableau.
+  - +5 points when a move turns over a newly exposed face-down Tableau card.
+  - 0 points for stock draws and ordinary tableau rearrangements.
+- These rules avoid awarding repeatable points for cycling the same tableau move.
+
+### Verification
+- Added unit coverage for legal hint enumeration, hint prioritization, stock-draw fallback, non-mutating hints, score awards, and score undo/redo restoration.
+- Added offscreen UI coverage for Hint selection, the visible score, timer progression, timer persistence across undo, and timer reset on New Game.
+- Current target: **92 tests**; the result is confirmed by the latest GitHub Actions run, not by this document alone.
