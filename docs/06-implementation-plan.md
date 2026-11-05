@@ -331,3 +331,5 @@ Latest confirmed CI result: **69 passed**.
 **Not included in this basic UI milestone:** drag-and-drop, card movement/flip animations, and the expanded live DSA Monitor. Those remain later UI/monitor milestones.
 
 **Entry point:** `python -m solitaire.main`
+
+**Phase 4 verification:** GitHub Actions passes **75 tests**, including six offscreen PyQt6 UI smoke tests. Latest confirmed run: https://github.com/luqmanbuttcs/dsa-project/actions/runs/41991249772
