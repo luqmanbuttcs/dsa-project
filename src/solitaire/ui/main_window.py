@@ -466,8 +466,16 @@ class MainWindow(QMainWindow):
         self._hint_index = (self._hint_index + 1) % len(hints)
 
         self._clear_selection()
-        if hint.card_ids and hint.source_pile in ("waste",) or (
-            hint.card_ids and hint.source_pile.startswith("tableau-")
+        if hint.source_pile == "stock":
+            self._refresh_board()
+            self._set_status(
+                f"Hint: {hint.description} Click the Stock pile."
+            )
+            return
+
+        if hint.card_ids and (
+            hint.source_pile == "waste"
+            or hint.source_pile.startswith("tableau-")
         ):
             self._selected_card_id = hint.card_ids[0]
             self._selected_pile_id = hint.source_pile
