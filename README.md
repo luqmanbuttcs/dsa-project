@@ -1,6 +1,6 @@
 # Klondike Solitaire — CSC200 DSA Edition
 
-A desktop Klondike Solitaire project designed to demonstrate the five data structures required by the CSC200 project brief: Array/List, Stack, Queue, Linked List, and HashMap/Dictionary.
+A Python desktop Klondike Solitaire project designed to demonstrate the five data structures required by the CSC200 project brief: Array/List, Stack, Queue, Linked List, and HashMap/Dictionary.
 
 The approved UI direction uses a green-felt game board, dark navy panels, animated card movement, a move log, and a live DSA monitor. The interface must retain breathing space and keep the playing board visually dominant.
 
@@ -15,22 +15,33 @@ The six project documents are maintained in [docs/](docs/):
 5. [Backend / Domain Schema](docs/05-backend-schema.md)
 6. [Implementation Plan](docs/06-implementation-plan.md)
 
-## Current implementation status
+## Implementation status
 
-- [x] Requirements and design baseline
-- [x] Initial Python package configuration
-- [x] Custom doubly linked list
-- [x] Linked-list-backed Stack
-- [x] Circular-buffer FIFO Queue
-- [x] Unit tests for the core structures
-- [x] Card and deck model
-- [x] Initial 1–7 tableau deal and 24-card stock
-- [x] Dictionary card-location index
-- [ ] Klondike move validation and game engine
-- [ ] Undo/redo and operation instrumentation
-- [ ] PyQt6 board, card animations, and DSA monitor
+### Implemented and tested
+- [x] Custom doubly linked list with detach/attach run operations.
+- [x] Custom Stack ADT backed by the linked list.
+- [x] Custom FIFO Queue using a resizable circular buffer.
+- [x] Card, Suit, Rank, and stable card IDs.
+- [x] Array/List deck creation and shuffle.
+- [x] Exact initial Klondike deal: tableau sizes 1–7 and 24-card stock.
+- [x] Dictionary index for card zone, pile, position, and face state.
+- [x] Tableau descending/alternating-color and King-to-empty-column rules.
+- [x] Foundation Ace-to-King same-suit rules.
+- [x] Draw 1 / Draw 3, waste pile handling, and stock recycling.
+- [x] Tableau run transfer, waste-to-tableau, and tableau/waste-to-foundation moves.
+- [x] Automatic face-up flip of a newly exposed tableau card.
+- [x] Win detection when all 52 cards reach foundations.
+- [x] Structured DSA operation tracker for setup and game actions.
+- [x] Unit tests and GitHub Actions CI (47 tests passing on the current branch).
 
-The project is being implemented in small, testable milestones. The current UI is not yet runnable. The core structure, deck, and initial-state tests are passing in GitHub Actions.
+### Still to implement
+- [ ] Undo and Redo history stacks.
+- [ ] Full PyQt6 desktop interface.
+- [ ] Card drag-and-drop and movement/flip animations.
+- [ ] Live DSA Monitor widgets and move/operation history views.
+- [ ] Hint, timer/score polish, settings, and final UI validation.
+
+The current branch contains the tested domain/game-engine foundation. The graphical interface is not yet runnable.
 
 ## Development setup (Windows PowerShell)
 
@@ -47,10 +58,12 @@ Run the unit tests:
 
 ## Data-structure design
 
-- The deck is created and shuffled as a Python list.
-- The stockpile uses a custom FIFO circular-buffer Queue.
-- Tableau columns expose Stack behavior backed by the custom doubly linked list, allowing both top-card operations and linked-list run transfers without duplicate card storage.
-- Foundations and the waste pile use Stack behavior.
-- A Dictionary index tracks every card's current zone, pile, position, and face state.
+- **Array/List:** temporary 52-card deck for creation, shuffle, and deal.
+- **Queue:** custom FIFO circular-buffer queue for the stockpile.
+- **Stack:** custom LIFO abstraction for tableau, foundation, and waste piles.
+- **Linked List:** custom doubly linked nodes underpin tableau columns; runs can be detached and attached without copying card objects.
+- **Dictionary:** card ID to current zone, pile, position, and face state.
 
-See the technical requirements and backend/domain schema documents for the full contracts.
+Tableau stacks are backed by the custom linked list. This gives tableau columns Stack behavior while preserving one canonical set of card nodes rather than maintaining duplicate card copies.
+
+The operation tracker records events after real methods/actions execute. It is not a simulated counter layer.
