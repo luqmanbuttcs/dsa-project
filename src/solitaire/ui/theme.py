@@ -53,3 +53,10 @@ QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 QScrollBar:horizontal {{ background: transparent; height: 9px; margin: 2px; }}
 QScrollBar::handle:horizontal {{ background: #315C78; border-radius: 4px; min-width: 26px; }}
 """
+
+
+from PyQt6.QtWidgets import QFrame
+
+
+class FeltBoard(QFrame):
+    """Emerald tabletop frame styled with native Qt stylesheets."""
