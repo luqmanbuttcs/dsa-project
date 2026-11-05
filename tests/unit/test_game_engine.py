@@ -775,3 +775,72 @@ def test_undo_does_not_rewind_elapsed_time_or_draw_mode_preference():
     assert state.elapsed_seconds == 57
     assert state.draw_count == 1
     state.assert_invariants()
+
+
+
+def test_multiple_undo_and_redo_actions_restore_move_log_in_order():
+    state = create_new_game(Random(905), draw_count=1)
+    engine = GameEngine(state)
+
+    first_draw = engine.draw_from_stock(1)[0]
+    second_draw = engine.draw_from_stock(1)[0]
+    assert len(engine.move_history) == 2
+
+    assert engine.undo()
+    assert [card.card_id for card in state.waste.to_list()] == [first_draw.card_id]
+    assert len(engine.move_history) == 1
+    assert engine.move_history[0].card_ids == (first_draw.card_id,)
+
+    assert engine.undo()
+    assert state.waste.is_empty()
+    assert state.stock.size() == 24
+    assert engine.move_history == []
+    state.assert_invariants()
+
+    assert engine.redo()
+    assert [card.card_id for card in state.waste.to_list()] == [first_draw.card_id]
+    assert len(engine.move_history) == 1
+
+    assert engine.redo()
+    assert [card.card_id for card in state.waste.to_list()] == [
+        first_draw.card_id,
+        second_draw.card_id,
+    ]
+    assert len(engine.move_history) == 2
+    assert engine.move_history[-1].card_ids == (second_draw.card_id,)
+    state.assert_invariants()
+
+
+def test_undo_redo_restores_multi_card_tableau_sequence_order():
+    state = arranged_move_state(
+        destination_card_id="H-10",
+        source_run_ids=("C-9", "H-8"),
+    )
+    engine = GameEngine(state)
+    source = state.tableau["tableau-1"]
+    destination = state.tableau["tableau-2"]
+    original_source_ids = [
+        card.card_id for card in source.cards_bottom_to_top()
+    ]
+    original_destination_ids = [
+        card.card_id for card in destination.cards_bottom_to_top()
+    ]
+
+    moved = engine.move_tableau_to_tableau("tableau-1", "C-9", "tableau-2")
+    assert [card.card_id for card in moved] == ["C-9", "H-8"]
+
+    assert engine.undo()
+    assert [
+        card.card_id for card in source.cards_bottom_to_top()
+    ] == original_source_ids
+    assert [
+        card.card_id for card in destination.cards_bottom_to_top()
+    ] == original_destination_ids
+    state.assert_invariants()
+
+    assert engine.redo()
+    assert [
+        card.card_id for card in destination.cards_bottom_to_top()
+    ][-2:] == ["C-9", "H-8"]
+    assert source.peek().face_up
+    state.assert_invariants()
