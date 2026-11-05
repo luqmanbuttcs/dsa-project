@@ -462,3 +462,61 @@ def test_tableau_move_transfers_entire_face_up_sequence_in_original_order():
     assert state.card_index["C-9"].pile_id == "tableau-2"
     assert state.card_index["H-8"].pile_id == "tableau-2"
     state.assert_invariants()
+
+
+
+def test_foundation_stack_accepts_ace_then_two_and_keeps_lifo_top():
+    from solitaire.domain.card import Rank
+
+    deck = {card.card_id: card for card in DeckFactory.create_standard_deck()}
+    ace = deck.pop("H-A")
+    two = deck.pop("H-2")
+    ace.turn_face_up()
+    two.turn_face_up()
+
+    stock = Queue()
+    for card in deck.values():
+        card.turn_face_down()
+        stock.enqueue(card)
+
+    waste = Stack()
+    tableau = {
+        f"tableau-{number}": TableauColumn(f"tableau-{number}")
+        for number in range(1, 8)
+    }
+    tableau["tableau-1"].push(two)
+    foundations = {suit: Stack() for suit in Suit}
+    foundations[Suit.HEARTS].push(ace)
+
+    index = {}
+    for position, card in enumerate(stock.to_list()):
+        index[card.card_id] = CardLocation(
+            Zone.STOCK, "stock", position, card.face_up
+        )
+    index[ace.card_id] = CardLocation(
+        Zone.FOUNDATION, "foundation-h", 0, ace.face_up
+    )
+    index[two.card_id] = CardLocation(
+        Zone.TABLEAU, "tableau-1", 0, two.face_up
+    )
+
+    state = GameState(
+        stock=stock,
+        waste=waste,
+        tableau=tableau,
+        foundations=foundations,
+        card_index=index,
+    )
+    state.assert_invariants()
+    engine = GameEngine(state)
+
+    moved = engine.move_tableau_to_foundation("tableau-1", Suit.HEARTS)
+
+    pile = state.foundations[Suit.HEARTS]
+    assert moved is two
+    assert pile.to_list() == [ace, two]
+    assert pile.peek() is two
+    assert pile.linked_list.validate()
+    assert state.card_index["H-2"].zone is Zone.FOUNDATION
+    assert state.card_index["H-2"].position == 1
+    state.assert_invariants()
