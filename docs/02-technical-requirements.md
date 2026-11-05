@@ -216,3 +216,22 @@ A 52-card game should feel immediate. Aim for O(1) stack push/pop/peek, O(1) que
 - Whether local game history/preferences need persistence.
 - Final minimum window dimensions after the first visual prototype.
 
+
+
+## 12. Phase implementation mapping
+
+The source code implementing the instructor's first two phases is:
+
+| Instructor phase | Implementation |
+|---|---|
+| Phase 1 — Card | `src/solitaire/domain/card.py` |
+| Phase 1 — Deck creation and shuffle | `src/solitaire/domain/deck.py` |
+| Phase 1 — Initial deal | `create_new_game()` in `src/solitaire/domain/game_state.py` |
+| Phase 2 — Tableau pile | `TableauColumn` in `src/solitaire/domain/game_state.py` |
+| Phase 2 — Stack operations | `src/solitaire/structures/stack.py` |
+| Phase 2 — Linked-list node/run operations | `src/solitaire/structures/linked_list.py` and `TableauColumn.detach_run_from()/attach_run()` |
+| Phase 2 — Foundation piles | `GameState.foundations`, a suit-keyed dictionary of custom Stack instances |
+| Phase 2 — Card movement | `src/solitaire/domain/game_engine.py` |
+| Phase 2 — Rule validation | `src/solitaire/domain/rules.py` |
+
+Tableau columns expose a Stack interface backed by the custom doubly linked list. This is intentional: Stack operations provide LIFO pile semantics, while linked-list node splicing moves a complete face-up suffix without copying cards or keeping duplicate stores. Foundation piles are Stack instances; the Stack implementation also uses the linked-list implementation as its backing storage.
