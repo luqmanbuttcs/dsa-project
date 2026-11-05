@@ -70,11 +70,11 @@ def build_waste_ace_state() -> GameState:
     )
 
 
-def build_tableau_move_state() -> GameState:
+def build_tableau_move_state(destination_card_id: str = "C-9") -> GameState:
     cards = {card.card_id: card for card in DeckFactory.create_standard_deck()}
     hidden = cards.pop("C-7")
     moving = cards.pop("H-8")
-    destination_top = cards.pop("C-9")
+    destination_top = cards.pop(destination_card_id)
     hidden.turn_face_down()
     moving.turn_face_up()
     destination_top.turn_face_up()
@@ -492,4 +492,104 @@ def test_new_game_confirmation_can_be_cancelled_without_losing_current_game(
     assert engine.state.stock.size() == 23
     assert engine.state.waste.size() == 1
     assert engine.state.move_count == 1
+    window.close()
+
+
+
+def test_invalid_drag_drop_is_consumed_but_does_not_mutate_the_game(app):
+    engine = GameEngine(build_tableau_move_state("D-9"))
+    window = MainWindow(engine)
+    window.show()
+    app.processEvents()
+
+    before_source = tuple(
+        card.card_id
+        for card in engine.state.tableau["tableau-1"].cards_bottom_to_top()
+    )
+    before_destination = tuple(
+        card.card_id
+        for card in engine.state.tableau["tableau-2"].cards_bottom_to_top()
+    )
+    before_index = dict(engine.state.card_index)
+    event, mime = _make_drop_event("H-8", "tableau-1")
+
+    window.tableau_widgets["tableau-2"].dropEvent(event)
+
+    assert event.isAccepted()
+    assert tuple(
+        card.card_id
+        for card in engine.state.tableau["tableau-1"].cards_bottom_to_top()
+    ) == before_source
+    assert tuple(
+        card.card_id
+        for card in engine.state.tableau["tableau-2"].cards_bottom_to_top()
+    ) == before_destination
+    assert engine.state.card_index == before_index
+    assert engine.state.move_count == 0
+    assert not engine.can_undo
+    assert "alternate red and black" in window.status_label.text()
+    engine.state.assert_invariants()
+    window.close()
+
+
+def test_undo_redo_animate_visible_card_moves(app):
+    engine = GameEngine(build_tableau_move_state())
+    window = MainWindow(engine)
+    window.show()
+    app.processEvents()
+
+    engine.move_tableau_to_tableau("tableau-1", "H-8", "tableau-2")
+    window._refresh_board()
+    window._undo()
+    QTest.qWait(300)
+
+    moved_back = window._find_card_button("H-8")
+    assert moved_back is not None and moved_back.isVisible()
+    assert engine.state.tableau["tableau-1"].peek().card_id == "H-8"
+
+    window._redo()
+    QTest.qWait(300)
+    moved_forward = window._find_card_button("H-8")
+    assert moved_forward is not None and moved_forward.isVisible()
+    assert engine.state.tableau["tableau-2"].peek().card_id == "H-8"
+    assert not window._active_animations
+    window.close()
+
+
+def test_restart_confirmation_also_protects_an_undone_game_with_redo_available(
+    app, monkeypatch
+):
+    engine = GameEngine(create_new_game(Random(4505)))
+    window = MainWindow(engine)
+    window.stock_button.click()
+    window.undo_button.click()
+    assert not engine.can_undo
+    assert engine.can_redo
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.No,
+    )
+    window.new_game_button.click()
+
+    assert window.engine is engine
+    assert engine.can_redo
+    assert engine.state.stock.size() == 24
+    assert engine.state.waste.is_empty()
+    window.close()
+
+
+def test_dsa_history_rows_include_ordered_utc_timestamps(app):
+    window = MainWindow(GameEngine(create_new_game(Random(4506))))
+    window.stock_button.click()
+
+    rows = [
+        window.dsa_monitor.operation_history.item(index).text()
+        for index in range(window.dsa_monitor.operation_history.count())
+    ]
+    queue_row = next(row for row in rows if "Queue · DEQUEUE" in row)
+    assert queue_row.startswith("#")
+    assert " UTC " in queue_row
+    assert "PLAY" in queue_row
     window.close()
