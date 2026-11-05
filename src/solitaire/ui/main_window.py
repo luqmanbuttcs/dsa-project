@@ -504,7 +504,10 @@ class MainWindow(QMainWindow):
             self._set_status(f"Stock draw mode set to Draw {count}.")
 
     def _draw_stock(self) -> None:
-        stock_visual = self._capture_widget_visual(self.stock_button)
+        stock_visual = (
+            self._capture_widget_visual(self.stock_button)
+            if self.isVisible() else None
+        )
         try:
             drawn = self.engine.draw_from_stock()
         except NoCardsAvailableError as error:
