@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from solitaire.domain.card import Card, Suit
 from solitaire.domain.game_state import TableauColumn
 from solitaire.ui.card_widget import CardButton
-from solitaire.ui.theme import paint_card_back
 
 
 CARD_WIDTH = CardButton.CARD_WIDTH
