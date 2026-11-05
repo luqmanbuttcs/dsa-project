@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from solitaire.domain.card import Card, CardColor, Rank
+from solitaire.domain.card import Card, Rank, Suit
 
 
 class MoveError(str, Enum):
@@ -13,6 +13,7 @@ class MoveError(str, Enum):
     CARD_NOT_FOUND = "The selected card is not in the source pile."
     CARD_FACE_DOWN = "Face-down cards cannot be moved."
     SEQUENCE_HAS_FACE_DOWN_CARD = "A moved sequence cannot contain face-down cards."
+    INVALID_SEQUENCE_ORDER = "The selected tableau sequence is not correctly ordered."
     WRONG_TABLEAU_RANK = "Place a card on the next higher rank."
     SAME_TABLEAU_COLOR = "Tableau cards must alternate red and black."
     EMPTY_COLUMN_REQUIRES_KING = "Only a King-led sequence can fill an empty column."
@@ -54,6 +55,14 @@ class RuleValidator:
         if any(not card.face_up for card in run):
             return ValidationResult.reject(MoveError.SEQUENCE_HAS_FACE_DOWN_CARD)
 
+        # Validate the run itself: storage order is bottom-to-top, so each
+        # next card must be one rank lower and the opposite color.
+        for lower_card, upper_card in zip(run, run[1:]):
+            if int(lower_card.rank) != int(upper_card.rank) + 1:
+                return ValidationResult.reject(MoveError.INVALID_SEQUENCE_ORDER)
+            if lower_card.color is upper_card.color:
+                return ValidationResult.reject(MoveError.INVALID_SEQUENCE_ORDER)
+
         moving_card = run[0]
 
         if destination_top is None:
@@ -75,7 +84,7 @@ class RuleValidator:
     @staticmethod
     def validate_foundation(
         card: Card,
-        foundation_suit,
+        foundation_suit: Suit,
         foundation_top: Card | None,
     ) -> ValidationResult:
         if not card.face_up:
