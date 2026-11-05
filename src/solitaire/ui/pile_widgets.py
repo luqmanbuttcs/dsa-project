@@ -51,6 +51,8 @@ class WasteWidget(QWidget):
     """Shows up to the three newest waste cards; only the top card is active."""
 
     card_selected = pyqtSignal(str, str)
+    card_drag_started = pyqtSignal(str, str)
+    card_drag_finished = pyqtSignal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -79,6 +81,8 @@ class WasteWidget(QWidget):
             )
             if is_top:
                 button.activated.connect(self.card_selected.emit)
+                button.drag_started.connect(self.card_drag_started.emit)
+                button.drag_finished.connect(self.card_drag_finished.emit)
             self._layout.addWidget(button)
             self._buttons.append(button)
 
@@ -92,6 +96,7 @@ class FoundationSlot(QWidget):
     """Displays one suit foundation and acts as a click-to-place target."""
 
     selected = pyqtSignal(object)
+    card_dropped = pyqtSignal(str, str, str)
 
     def __init__(self, suit: Suit, parent=None) -> None:
         super().__init__(parent)
@@ -99,6 +104,9 @@ class FoundationSlot(QWidget):
         self.setObjectName(f"foundation-{suit.code.lower()}")
         self.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
         self._button: QPushButton | CardButton | None = None
+        self._base_button_style = ""
+        self._drag_highlighted = False
+        self.setAcceptDrops(True)
         self.set_card(None)
 
     def set_card(self, card: Card | None) -> None:
@@ -123,11 +131,52 @@ class FoundationSlot(QWidget):
             button.setAccessibleName(f"{card.rank.label} of {card.suit.value} foundation. Click to add a card.")
 
         button.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
+        button.setAcceptDrops(False)
         button.clicked.connect(lambda: self.selected.emit(self.suit))
         self._button = button
+        self._base_button_style = button.styleSheet()
+        self._apply_drop_style()
         button.setParent(self)
         button.setGeometry(0, 0, CARD_WIDTH, CARD_HEIGHT)
         button.show()
+
+    def set_drag_highlight(self, highlighted: bool) -> None:
+        self._drag_highlighted = highlighted
+        self._apply_drop_style()
+
+    def _apply_drop_style(self) -> None:
+        if self._button is None:
+            return
+        highlight_style = (
+            " QPushButton { border: 3px solid #F5C84C; }"
+            if self._drag_highlighted else ""
+        )
+        self._button.setStyleSheet(self._base_button_style + highlight_style)
+
+    def dragEnterEvent(self, event) -> None:
+        payload = CardButton._drag_payload(event)
+        if payload and payload[1] != f"foundation-{self.suit.code.lower()}":
+            self.set_drag_highlight(True)
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+            return
+        event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:
+        self.set_drag_highlight(False)
+        event.accept()
+
+    def dropEvent(self, event) -> None:
+        self.set_drag_highlight(False)
+        payload = CardButton._drag_payload(event)
+        if payload and payload[1] != f"foundation-{self.suit.code.lower()}":
+            self.card_dropped.emit(
+                payload[0], payload[1], f"foundation-{self.suit.code.lower()}"
+            )
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+            return
+        event.ignore()
 
 
 class TableauColumnWidget(QWidget):
@@ -135,6 +184,9 @@ class TableauColumnWidget(QWidget):
 
     card_selected = pyqtSignal(str, str)
     empty_selected = pyqtSignal(str)
+    card_dropped = pyqtSignal(str, str, str)
+    card_drag_started = pyqtSignal(str, str)
+    card_drag_finished = pyqtSignal()
 
     FACE_DOWN_OFFSET = 22
     FACE_UP_OFFSET = 28
@@ -148,6 +200,8 @@ class TableauColumnWidget(QWidget):
         self.setMinimumHeight(CARD_HEIGHT)
         self._buttons: list[CardButton] = []
         self._is_empty = True
+        self._drag_highlighted = False
+        self.setAcceptDrops(True)
 
     def set_column(
         self,
@@ -181,6 +235,11 @@ class TableauColumnWidget(QWidget):
             )
             if card.face_up:
                 button.activated.connect(self.card_selected.emit)
+                button.drag_started.connect(self.card_drag_started.emit)
+                button.drag_finished.connect(self.card_drag_finished.emit)
+            button.drop_requested.connect(self.card_dropped.emit)
+            if self._drag_highlighted:
+                button.set_drag_highlight(True)
             button.setGeometry(0, y_position, CARD_WIDTH, CARD_HEIGHT)
             button.show()
             button.raise_()
@@ -196,6 +255,36 @@ class TableauColumnWidget(QWidget):
     @property
     def card_buttons(self) -> tuple[CardButton, ...]:
         return tuple(self._buttons)
+
+    def set_drag_highlight(self, highlighted: bool) -> None:
+        self._drag_highlighted = highlighted
+        for button in self._buttons:
+            button.set_drag_highlight(highlighted)
+
+    def dragEnterEvent(self, event) -> None:
+        payload = CardButton._drag_payload(event)
+        if payload and payload[1] != self.column_id:
+            self.set_drag_highlight(True)
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+            return
+        event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:
+        self.set_drag_highlight(False)
+        event.accept()
+
+    def dropEvent(self, event) -> None:
+        self.set_drag_highlight(False)
+        payload = CardButton._drag_payload(event)
+        if payload and payload[1] != self.column_id:
+            self.card_dropped.emit(
+                payload[0], payload[1], self.column_id
+            )
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+            return
+        event.ignore()
 
     def mousePressEvent(self, event) -> None:
         if self._is_empty and event.button() is Qt.MouseButton.LeftButton:
