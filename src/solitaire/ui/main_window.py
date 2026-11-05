@@ -506,6 +506,17 @@ class MainWindow(QMainWindow):
         self._refresh_board()
 
     def _new_game(self) -> None:
+        if self.engine.state.move_count or self.engine.can_undo:
+            answer = QMessageBox.question(
+                self,
+                "Start a new game?",
+                "Your current game, score, and move history will be discarded. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer is not QMessageBox.StandardButton.Yes:
+                return
+
         draw_count = self.draw_mode_combo.currentData()
         tracker = OperationTracker()
         self.engine = GameEngine(
@@ -517,6 +528,7 @@ class MainWindow(QMainWindow):
         self._hint_index = 0
         self._update_clock_display()
         self._clear_selection()
+        self._clear_drag_preview()
         self._set_status("New shuffled game started.")
         self._refresh_board()
 
@@ -554,6 +566,291 @@ class MainWindow(QMainWindow):
             f"Hint {hint_number}/{len(hints)}: {hint.description} "
             "The source card is selected; choose the suggested destination."
         )
+
+    def _install_shortcuts(self) -> None:
+        """Provide keyboard alternatives for the most common game actions."""
+        shortcuts = (
+            ("Undo", "Ctrl+Z", self._undo),
+            ("Redo", "Ctrl+Y", self._redo),
+            ("New Game", "Ctrl+N", self._new_game),
+            ("Hint", "H", self._show_hint),
+            ("Draw Stock", "Space", self._draw_stock),
+        )
+        self._shortcut_actions: list[QAction] = []
+        for title, sequence, callback in shortcuts:
+            action = QAction(title, self)
+            action.setShortcut(QKeySequence(sequence))
+            action.triggered.connect(callback)
+            self.addAction(action)
+            self._shortcut_actions.append(action)
+
+    def _start_drag_preview(self, card_id: str, source_pile: str) -> None:
+        """Highlight only destinations present in the engine's legal hint list."""
+        destinations = {
+            hint.destination_pile
+            for hint in self.engine.find_hints()
+            if hint.source_pile == source_pile
+            and hint.card_ids
+            and hint.card_ids[0] == card_id
+        }
+        self._drag_destinations = destinations
+        for column_id, widget in self._tableau_widgets.items():
+            widget.set_drag_highlight(column_id in destinations)
+        for suit, widget in self._foundation_widgets.items():
+            widget.set_drag_highlight(
+                f"foundation-{suit.code.lower()}" in destinations
+            )
+
+    def _clear_drag_preview(self) -> None:
+        self._drag_destinations.clear()
+        for widget in self._tableau_widgets.values():
+            widget.set_drag_highlight(False)
+        for widget in self._foundation_widgets.values():
+            widget.set_drag_highlight(False)
+
+    def _handle_drop(
+        self, card_id: str, source_pile: str, destination_pile: str
+    ) -> None:
+        """Route a drag/drop through the same validated engine methods as clicks."""
+        if source_pile == destination_pile:
+            self._set_status("Choose a different destination.", error=True)
+            return
+
+        move_visuals, flip_visual = self._capture_move_visuals(
+            card_id, source_pile
+        )
+        try:
+            if destination_pile.startswith("tableau-"):
+                if source_pile == "waste":
+                    self.engine.move_waste_to_tableau(destination_pile)
+                elif source_pile.startswith("tableau-"):
+                    self.engine.move_tableau_to_tableau(
+                        source_pile, card_id, destination_pile
+                    )
+                else:
+                    self._set_status(
+                        "Cards can only move from Waste or Tableau to Tableau.",
+                        error=True,
+                    )
+                    return
+            elif destination_pile.startswith("foundation-"):
+                suit = next(
+                    (
+                        item for item in Suit
+                        if destination_pile == f"foundation-{item.code.lower()}"
+                    ),
+                    None,
+                )
+                if suit is None:
+                    self._set_status("Unknown foundation destination.", error=True)
+                    return
+                if source_pile == "waste":
+                    self.engine.move_waste_to_foundation(suit)
+                elif source_pile.startswith("tableau-"):
+                    source = self.engine.state.tableau[source_pile]
+                    if source.is_empty() or source.peek().card_id != card_id:
+                        self._set_status(
+                            "Only the top tableau card can move to a foundation.",
+                            error=True,
+                        )
+                        return
+                    self.engine.move_tableau_to_foundation(source_pile, suit)
+                else:
+                    self._set_status(
+                        "Cards can only move from Waste or Tableau to a foundation.",
+                        error=True,
+                    )
+                    return
+            else:
+                self._set_status("That is not a valid drop target.", error=True)
+                return
+        except (InvalidMoveError, ValueError, RuntimeError) as error:
+            self._set_status(str(error), error=True)
+            return
+
+        self._mark_player_action()
+        self._clear_selection()
+        self._clear_drag_preview()
+        self._set_status("Card dropped successfully.")
+        self._refresh_board()
+        self._animate_transitions(move_visuals, flip_visual)
+
+    def _find_card_button(self, card_id: str) -> CardButton | None:
+        for button in self.waste_widget.card_buttons:
+            if button.card_id == card_id:
+                return button
+        for widget in self._tableau_widgets.values():
+            for button in widget.card_buttons:
+                if button.card_id == card_id:
+                    return button
+        for slot in self._foundation_widgets.values():
+            button = slot._button
+            if isinstance(button, CardButton) and button.card_id == card_id:
+                return button
+        return None
+
+    def _widget_rect_in_board(self, widget: QWidget) -> QRect:
+        return QRect(
+            widget.mapTo(self.centralWidget(), QPoint(0, 0)),
+            widget.size(),
+        )
+
+    def _capture_widget_visual(
+        self, widget: QWidget
+    ) -> tuple[object, QRect] | None:
+        if not widget.isVisible():
+            return None
+        return widget.grab(), self._widget_rect_in_board(widget)
+
+    def _capture_move_visuals(
+        self, card_id: str, source_pile: str | None
+    ) -> tuple[dict[str, tuple[object, QRect]], tuple[str, object, QRect] | None]:
+        """Capture the cards before a model mutation so UI motion has real endpoints."""
+        card_ids = [card_id]
+        flip_visual = None
+        if source_pile and source_pile.startswith("tableau-"):
+            column = self.engine.state.tableau.get(source_pile)
+            cards = column.cards_bottom_to_top() if column else []
+            index = next(
+                (i for i, card in enumerate(cards) if card.card_id == card_id),
+                None,
+            )
+            if index is not None:
+                card_ids = [card.card_id for card in cards[index:]]
+                if index > 0 and not cards[index - 1].face_up:
+                    exposed = cards[index - 1]
+                    button = self._find_card_button(exposed.card_id)
+                    visual = self._capture_widget_visual(button) if button else None
+                    if visual is not None:
+                        flip_visual = (exposed.card_id, visual[0], visual[1])
+
+        visuals: dict[str, tuple[object, QRect]] = {}
+        for moving_id in card_ids:
+            button = self._find_card_button(moving_id)
+            visual = self._capture_widget_visual(button) if button else None
+            if visual is not None:
+                visuals[moving_id] = visual
+        return visuals, flip_visual
+
+    def _animate_transitions(
+        self,
+        move_visuals: dict[str, tuple[object, QRect]],
+        flip_visual: tuple[str, object, QRect] | None,
+    ) -> None:
+        if self.reduce_motion_check.isChecked() or not self.isVisible():
+            return
+        QTimer.singleShot(
+            0,
+            lambda: self._start_animations(move_visuals, flip_visual),
+        )
+
+    def _animate_move_visuals(
+        self, visuals: dict[str, tuple[object, QRect]]
+    ) -> None:
+        self._animate_transitions(visuals, None)
+
+    def _start_animations(
+        self,
+        move_visuals: dict[str, tuple[object, QRect]],
+        flip_visual: tuple[str, object, QRect] | None,
+    ) -> None:
+        if flip_visual is not None:
+            self._start_flip_animation(*flip_visual)
+        for index, (card_id, visual) in enumerate(move_visuals.items()):
+            QTimer.singleShot(
+                index * 24,
+                lambda current_id=card_id, current_visual=visual:
+                    self._start_card_animation(current_id, *current_visual),
+            )
+
+    def _start_card_animation(
+        self, card_id: str, pixmap, start_rect: QRect
+    ) -> None:
+        target = self._find_card_button(card_id)
+        if target is None or not target.isVisible():
+            return
+        end_rect = self._widget_rect_in_board(target)
+        target.hide()
+        overlay = QLabel(self.centralWidget())
+        overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        overlay.setPixmap(pixmap)
+        overlay.setScaledContents(True)
+        overlay.setStyleSheet(
+            "border: 2px solid #F5C84C; border-radius: 8px; background: transparent;"
+        )
+        overlay.setGeometry(start_rect)
+        overlay.show()
+        overlay.raise_()
+        animation = QPropertyAnimation(overlay, b"geometry", self)
+        animation.setDuration(220)
+        animation.setStartValue(start_rect)
+        animation.setEndValue(end_rect)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        animation.finished.connect(
+            lambda: self._finish_card_animation(overlay, target, animation)
+        )
+        self._active_animations.append(animation)
+        animation.start()
+
+    def _finish_card_animation(
+        self, overlay: QLabel, target: QWidget, animation: QPropertyAnimation
+    ) -> None:
+        target.show()
+        overlay.deleteLater()
+        if animation in self._active_animations:
+            self._active_animations.remove(animation)
+
+    def _start_flip_animation(
+        self, card_id: str, back_pixmap, start_rect: QRect
+    ) -> None:
+        target = self._find_card_button(card_id)
+        if target is None or not target.isVisible():
+            return
+        front_pixmap = target.grab()
+        end_rect = self._widget_rect_in_board(target)
+        target.hide()
+
+        overlay = QLabel(self.centralWidget())
+        overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        overlay.setPixmap(back_pixmap)
+        overlay.setScaledContents(True)
+        overlay.setStyleSheet(
+            "border: 2px solid #F5C84C; border-radius: 8px; background: transparent;"
+        )
+        overlay.setGeometry(start_rect)
+        overlay.show()
+        overlay.raise_()
+
+        narrow_rect = QRect(
+            start_rect.center().x(), start_rect.y(), 1, start_rect.height()
+        )
+        first = QPropertyAnimation(overlay, b"geometry", self)
+        first.setDuration(90)
+        first.setStartValue(start_rect)
+        first.setEndValue(narrow_rect)
+        first.setEasingCurve(QEasingCurve.Type.InOutCubic)
+
+        def reveal_front() -> None:
+            overlay.setPixmap(front_pixmap)
+            overlay.setGeometry(
+                QRect(end_rect.center().x(), end_rect.y(), 1, end_rect.height())
+            )
+            second = QPropertyAnimation(overlay, b"geometry", self)
+            second.setDuration(90)
+            second.setStartValue(overlay.geometry())
+            second.setEndValue(end_rect)
+            second.setEasingCurve(QEasingCurve.Type.InOutCubic)
+            second.finished.connect(
+                lambda: self._finish_card_animation(overlay, target, second)
+            )
+            self._active_animations.append(second)
+            second.start()
+            if first in self._active_animations:
+                self._active_animations.remove(first)
+
+        first.finished.connect(reveal_front)
+        self._active_animations.append(first)
+        first.start()
 
     def _elapsed_seconds(self) -> int:
         elapsed = self._elapsed_base
@@ -640,3 +937,19 @@ class MainWindow(QMainWindow):
         for event in self.engine.move_history[-8:]:
             self.move_log.addItem(event.description)
         self.move_log.scrollToBottom()
+        if hasattr(self, "dsa_monitor"):
+            self.dsa_monitor.refresh(
+                self.engine,
+                selected_card_id=self._selected_card_id,
+                selected_pile_id=self._selected_pile_id,
+            )
+
+    def closeEvent(self, event) -> None:
+        if hasattr(self, "_clock_timer"):
+            self._clock_timer.stop()
+        if self._clock_started_at is not None:
+            self._pause_clock()
+        for animation in tuple(self._active_animations):
+            animation.stop()
+        event.accept()
+        super().closeEvent(event)
