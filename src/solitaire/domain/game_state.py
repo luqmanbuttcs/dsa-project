@@ -116,15 +116,39 @@ class GameState:
                 Zone.WASTE, "waste", position, card.face_up
             )
 
+        for card in self.stock.to_list():
+            assert not card.face_up, f"Stock card {card.card_id} must remain face-down"
+
+        for card in self.waste.to_list():
+            assert card.face_up, f"Waste card {card.card_id} must be face-up"
+
         for column_id, column in self.tableau.items():
             assert column.stack.linked_list.validate(), f"Invalid links in {column_id}"
+            face_up_seen = False
             for position, card in enumerate(column.cards_bottom_to_top()):
+                if card.face_up:
+                    face_up_seen = True
+                elif face_up_seen:
+                    raise AssertionError(
+                        f"Face-down card {card.card_id} appears above a face-up card in {column_id}"
+                    )
                 expected_locations[card.card_id] = CardLocation(
                     Zone.TABLEAU, column_id, position, card.face_up
                 )
 
         for suit, pile in self.foundations.items():
-            for position, card in enumerate(pile.to_list()):
+            foundation_cards = pile.to_list()
+            ranks = [int(card.rank) for card in foundation_cards]
+            assert all(card.suit is suit for card in foundation_cards), (
+                f"Foundation {suit.value} contains a card of another suit"
+            )
+            assert ranks == list(range(1, len(ranks) + 1)), (
+                f"Foundation {suit.value} is not an ascending Ace-first sequence"
+            )
+            assert all(card.face_up for card in foundation_cards), (
+                f"Foundation {suit.value} contains a face-down card"
+            )
+            for position, card in enumerate(foundation_cards):
                 expected_locations[card.card_id] = CardLocation(
                     Zone.FOUNDATION, f"foundation-{suit.code.lower()}", position, card.face_up
                 )
