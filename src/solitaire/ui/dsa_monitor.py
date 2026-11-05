@@ -200,12 +200,12 @@ class DSAMonitorPanel(QWidget):
                 for label, amount in step_counts.items()
             )
             self.latest_operation.setText(
-                "LATEST OPERATION GROUP\\n"
-                f"Action: {latest.action_id}   Context: {latest.context}\\n"
+                "LATEST OPERATION GROUP\n"
+                f"Action: {latest.action_id}   Context: {latest.context}\n"
                 f"{len(action_events)} recorded steps; final step: "
                 f"{latest.structure.value} / {latest.operation}\\n"
                 f"Pile: {latest.pile_id or 'game'}   Cards: "
-                f"{', '.join(latest.card_ids) if latest.card_ids else '—'}\\n"
+                f"{', '.join(latest.card_ids) if latest.card_ids else '—'}\n"
                 f"Sequence: {step_summary}"
             )
         else:
