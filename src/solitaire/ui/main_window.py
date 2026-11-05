@@ -79,8 +79,8 @@ class MainWindow(QMainWindow):
 
         self.setObjectName("klondike-main-window")
         self.setWindowTitle("Klondike Solitaire — CSC200 DSA Edition")
-        self.setMinimumSize(1420, 800)
-        self.resize(1640, 940)
+        self.setMinimumSize(1280, 800)
+        self.resize(1600, 900)
         self._build_ui()
         self.dsa_monitor = DSAMonitorPanel(self)
         self.dsa_monitor_dock = QDockWidget("DSA Monitor", self)
