@@ -37,7 +37,7 @@ The project documentation is maintained in [docs/](docs/):
 - [x] Legal move hints generated from the current face-up game state.
 - [x] Timer that starts on the first successful action, pauses at victory, and survives undo/redo without rewinding.
 - [x] Performance scoring: +10 for a foundation move, +5 for waste-to-tableau, and +5 for exposing a face-down tableau card.
-- [x] Unit tests and GitHub Actions CI (latest verified result is recorded below after the full UI milestone).
+- [x] Unit tests and GitHub Actions CI (**111 tests passed** on November 5, 2026; [run #41997048543](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41997048543)).
 
 ### Phase 4 — Basic PyQt6 User Interface: implemented
 - [x] PyQt6 `QMainWindow` with a green-felt board and navy application shell.
@@ -101,7 +101,7 @@ The instructor's Card and Deck phase and Tableau and Foundation phase are implem
 - Redo reapplies the saved state; a new successful action clears the redo branch.
 - Undo/redo restoration uses the custom Stack, Queue, Linked List, and Dictionary-backed model. Operation events remain append-only and identify PLAY, UNDO, REDO, and HISTORY contexts.
 
-Verification at Phase 3 completion: **69 passing tests**. The current Phase 4 branch has 75 passing tests including UI smoke tests.
+Historical checkpoints: 69 tests at Phase 3 completion and 75 tests at the initial Phase 4 UI baseline. The final completed branch now has 111 passing tests (link below).
 
 
 ## Phase 4 — User Interface
@@ -119,7 +119,7 @@ The automated suite now covers the assignment's validation checklist:
 - **Win condition:** four complete, ordered suit foundations are required. A deterministic four-King endgame test verifies the final legal moves, win status, and undo/redo of the victory transition.
 - **Game flow:** fresh-game initialization is checked for 52 unique cards, 28 tableau cards, 24 stock cards, seven columns, and the required face-up/down arrangement. The endgame test then exercises legal completion through the engine.
 
-GitHub Actions confirmed **101 passing tests** before the final UI edge-case tests were added. The final PR head test result will be recorded here after those last tests complete.
+GitHub Actions confirms **111 passing tests** on November 5, 2026: [final expanded test run #41997048543](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41997048543).
 
 
 ## Keyboard controls
