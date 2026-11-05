@@ -92,6 +92,9 @@ class MainWindow(QMainWindow):
             | Qt.DockWidgetArea.BottomDockWidgetArea
         )
         self.dsa_monitor_dock.setMinimumWidth(340)
+        dock_title = QWidget(self.dsa_monitor_dock)
+        dock_title.setFixedHeight(0)
+        self.dsa_monitor_dock.setTitleBarWidget(dock_title)
         self.dsa_monitor_dock.setStyleSheet(
             "QDockWidget { color: #F4F8FF; background: #081D31; border: 1px solid #244965; }"
             "QDockWidget::title { background: #07182A; color: #EAF4FF; padding: 10px 12px; font-weight: 800; border-bottom: 1px solid #214763; }"
@@ -101,13 +104,15 @@ class MainWindow(QMainWindow):
             Qt.DockWidgetArea.RightDockWidgetArea, self.dsa_monitor_dock
         )
         self.dsa_monitor_button.toggled.connect(self.dsa_monitor_dock.setVisible)
-        self.dsa_monitor_dock.visibilityChanged.connect(
-            self.dsa_monitor_button.setChecked
-        )
+        self.dsa_monitor_action.toggled.connect(self.dsa_monitor_dock.setVisible)
+        self.dsa_monitor_dock.visibilityChanged.connect(self.dsa_monitor_button.setChecked)
+        self.dsa_monitor_dock.visibilityChanged.connect(self.dsa_monitor_action.setChecked)
+        self.dsa_monitor.mode_changed.connect(self._set_game_mode)
         self.dsa_monitor_button.setChecked(True)
         self.resizeDocks(
             [self.dsa_monitor_dock], [370], Qt.Orientation.Horizontal
         )
+        self.dsa_monitor.set_mode("play")
         self._install_shortcuts()
         self._clock_timer = QTimer(self)
         self._clock_timer.setInterval(1000)
@@ -138,15 +143,28 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(16, 12, 16, 12)
         root.setSpacing(11)
 
-        header = QHBoxLayout()
-        header.setSpacing(16)
-        title_group = QVBoxLayout()
-        title_group.setSpacing(3)
-        title = QLabel("♠  Klondike Solitaire")
+        header_panel = QFrame()
+        header_panel.setObjectName("app-header")
+        header_panel.setStyleSheet(
+            "QFrame#app-header { background: #06182A; border: 1px solid #1F405B; "
+            "border-radius: 12px; }"
+        )
+        header = QHBoxLayout(header_panel)
+        header.setContentsMargins(13, 7, 13, 7)
+        header.setSpacing(10)
+        title_group = QHBoxLayout()
+        title_group.setSpacing(8)
+        spade = QLabel("♠")
+        spade.setStyleSheet("color: #FFFFFF; font-size: 39px; font-weight: 800;")
+        title = QLabel("Klondike Solitaire")
         title.setObjectName("game-title")
-        title.setStyleSheet("font-family: Georgia, 'Times New Roman', serif; font-size: 27px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.4px;")
-        subtitle = QLabel("CSC200  •  DSA Edition")
-        subtitle.setStyleSheet("font-size: 10px; font-weight: 700; color: #8FFFC1; background: #064832; border: 1px solid #168C60; border-radius: 12px; padding: 4px 10px;")
+        title.setStyleSheet("font-family: Georgia, 'Times New Roman', serif; font-size: 27px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.3px;")
+        subtitle = QLabel("CSC200 – DSA Edition")
+        subtitle.setStyleSheet(
+            "font-size: 10px; font-weight: 800; color: #9DFFB8; background: #064832; "
+            "border: 1px solid #168C60; border-radius: 13px; padding: 5px 10px;"
+        )
+        title_group.addWidget(spade)
         title_group.addWidget(title)
         title_group.addWidget(subtitle)
         header.addLayout(title_group)
@@ -158,7 +176,7 @@ class MainWindow(QMainWindow):
             "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
             "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
-        header.addWidget(self.moves_label)
+        header.addWidget(self._metric_card("✣", self.moves_label))
 
         self.score_label = QLabel(f"SCORE  {self.engine.state.score}")
         self.score_label.setObjectName("score-label")
@@ -166,7 +184,7 @@ class MainWindow(QMainWindow):
             "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
             "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
-        header.addWidget(self.score_label)
+        header.addWidget(self._metric_card("🏆", self.score_label))
 
         self.timer_label = QLabel("TIME  00:00")
         self.timer_label.setObjectName("timer-label")
@@ -174,7 +192,7 @@ class MainWindow(QMainWindow):
             "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
             "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
-        header.addWidget(self.timer_label)
+        header.addWidget(self._metric_card("◷", self.timer_label))
 
         self.hint_button = QPushButton("💡 Hint")
         self.hint_button.setObjectName("hint-button")
@@ -189,7 +207,7 @@ class MainWindow(QMainWindow):
         self.dsa_monitor_button.setObjectName("dsa-monitor-toggle")
         self.dsa_monitor_button.setCheckable(True)
         self.dsa_monitor_button.setChecked(True)
-        header.addWidget(self.dsa_monitor_button)
+        self.dsa_monitor_button.setVisible(False)
 
         self.new_game_button = QPushButton("New Game")
         self.new_game_button.setObjectName("new-game-button")
@@ -198,7 +216,7 @@ class MainWindow(QMainWindow):
             "QPushButton:hover { background: #1CA4FF; }"
         )
         self.new_game_button.clicked.connect(self._new_game)
-        header.addWidget(self.new_game_button)
+        self.new_game_button.setVisible(False)
 
         self.undo_button = QPushButton("↶ Undo")
         self.undo_button.setObjectName("undo-button")
@@ -217,7 +235,7 @@ class MainWindow(QMainWindow):
             "QPushButton:hover { background: #173D5B; border-color: #69A9D5; }"
         )
         header.addWidget(self.settings_button)
-        root.addLayout(header)
+        root.addWidget(header_panel)
 
         self.victory_panel = QFrame()
         self.victory_panel.setObjectName("victory-panel")
@@ -301,14 +319,88 @@ class MainWindow(QMainWindow):
         tableau_layout.addStretch(1)
         tableau_scroll.setWidget(tableau_content)
         board_layout.addWidget(tableau_scroll, 1)
+
+        board_footer = QHBoxLayout()
+        board_footer.setSpacing(10)
+
+        log_panel = QFrame()
+        log_panel.setObjectName("move-log-panel")
+        log_panel.setMinimumWidth(300)
+        log_panel.setStyleSheet(
+            "QFrame#move-log-panel { background: rgba(5, 29, 44, 235); "
+            "border: 1px solid #2B7392; border-radius: 13px; }"
+        )
+        log_layout = QVBoxLayout(log_panel)
+        log_layout.setContentsMargins(11, 8, 11, 8)
+        log_layout.setSpacing(5)
+        log_title = QLabel("▤  Move Log")
+        log_title.setStyleSheet("font-size: 13px; font-weight: 900; color: #F6FAFF;")
+        self.move_log = QListWidget()
+        self.move_log.setObjectName("move-log")
+        self.move_log.setMaximumHeight(104)
+        self.move_log.setMinimumHeight(75)
+        self.move_log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.move_log.setStyleSheet(
+            "QListWidget { background: rgba(3, 24, 39, 145); color: #EFF6FD; "
+            "border: 1px solid #244E67; border-radius: 8px; padding: 5px; font-size: 11px; }"
+            "QListWidget::item { padding: 4px 5px; border-bottom: 1px solid rgba(100, 150, 170, 35); }"
+        )
+        log_layout.addWidget(log_title)
+        log_layout.addWidget(self.move_log)
+        board_footer.addWidget(log_panel, 3)
+
+        feedback_panel = QFrame()
+        feedback_panel.setObjectName("feedback-panel")
+        feedback_panel.setMinimumWidth(210)
+        feedback_panel.setStyleSheet(
+            "QFrame#feedback-panel { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, "
+            "stop:0 rgba(14, 90, 52, 238), stop:1 rgba(5, 49, 34, 245)); "
+            "border: 2px solid #78E95D; border-radius: 14px; }"
+        )
+        feedback_layout = QVBoxLayout(feedback_panel)
+        feedback_layout.setContentsMargins(11, 10, 11, 10)
+        feedback_layout.setSpacing(5)
+        feedback_header = QHBoxLayout()
+        self.feedback_icon_label = QLabel("✓")
+        self.feedback_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.feedback_icon_label.setFixedSize(31, 31)
+        self.feedback_icon_label.setStyleSheet(
+            "background: #23B948; color: white; border: 1px solid #A7FF9A; "
+            "border-radius: 15px; font-size: 20px; font-weight: 900;"
+        )
+        self.feedback_title_label = QLabel("Ready to Play")
+        self.feedback_title_label.setStyleSheet(
+            "color: #FFE078; font-size: 14px; font-weight: 900;"
+        )
+        feedback_header.addWidget(self.feedback_icon_label)
+        feedback_header.addWidget(self.feedback_title_label, 1)
+        feedback_layout.addLayout(feedback_header)
+        self.status_label = QLabel("Select a face-up card, then select a destination.")
+        self.status_label.setObjectName("game-status")
+        self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet(
+            "background: transparent; color: #F4FFF5; border: none; "
+            "font-size: 11px; padding: 3px 4px;"
+        )
+        feedback_layout.addWidget(self.status_label)
+        board_footer.addWidget(feedback_panel, 2)
+
+        board_layout.addLayout(board_footer)
         root.addWidget(board, 1)
 
-        footer = QHBoxLayout()
-        footer.setSpacing(16)
+        controls_panel = QFrame()
+        controls_panel.setObjectName("game-controls-panel")
+        controls_panel.setStyleSheet(
+            "QFrame#game-controls-panel { background: #08243A; border: 1px solid #244B65; "
+            "border-radius: 9px; }"
+        )
+        controls = QHBoxLayout(controls_panel)
+        controls.setContentsMargins(12, 5, 12, 5)
+        controls.setSpacing(11)
         draw_group = QHBoxLayout()
         draw_group.setSpacing(8)
         draw_label = QLabel("DRAW MODE")
-        draw_label.setStyleSheet("font-size: 10px; font-weight: 800; color: #B9C7D3;")
+        draw_label.setStyleSheet("font-size: 10px; font-weight: 900; color: #BDD0DF;")
         self.draw_mode_combo = QComboBox()
         self.draw_mode_combo.setObjectName("draw-mode-combo")
         self.draw_mode_combo.addItem("Draw 1", 1)
@@ -319,55 +411,52 @@ class MainWindow(QMainWindow):
         self.draw_mode_combo.currentIndexChanged.connect(self._draw_mode_changed)
         draw_group.addWidget(draw_label)
         draw_group.addWidget(self.draw_mode_combo)
-        footer.addLayout(draw_group)
+        controls.addLayout(draw_group)
         self.reduce_motion_check = QCheckBox("Reduce motion")
         self.reduce_motion_check.setObjectName("reduce-motion-check")
         self.reduce_motion_check.setToolTip(
             "Disable travel/flip animations while keeping move feedback and DSA events."
         )
-        footer.addWidget(self.reduce_motion_check)
+        controls.addWidget(self.reduce_motion_check)
+        controls.addStretch(1)
+        root.addWidget(controls_panel)
 
-        settings_menu = QMenu(self.settings_button)
-        draw_one_action = settings_menu.addAction("Draw 1")
-        draw_one_action.triggered.connect(lambda: self.draw_mode_combo.setCurrentIndex(0))
-        draw_three_action = settings_menu.addAction("Draw 3")
-        draw_three_action.triggered.connect(lambda: self.draw_mode_combo.setCurrentIndex(1))
-        settings_menu.addSeparator()
-        self.reduce_motion_action = QAction("Reduce Motion", self)
-        self.reduce_motion_action.setCheckable(True)
-        self.reduce_motion_action.toggled.connect(self.reduce_motion_check.setChecked)
-        self.reduce_motion_check.toggled.connect(self.reduce_motion_action.setChecked)
-        settings_menu.addAction(self.reduce_motion_action)
-        self.settings_button.setMenu(settings_menu)
-
-        self.status_label = QLabel("Select a face-up card, then select a destination.")
-        self.status_label.setObjectName("game-status")
-        self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet(
-            "background: #08263B; color: #E7F3FC; border: 1px solid #2B5E78; "
-            "border-radius: 10px; padding: 10px 14px;"
+    @staticmethod
+    def _metric_card(icon_text: str, value_label: QLabel) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("header-metric-card")
+        frame.setStyleSheet(
+            "QFrame#header-metric-card { background: #0A2943; "
+            "border: 1px solid #28526F; border-radius: 12px; }"
         )
-        footer.addWidget(self.status_label, 1)
-        root.addLayout(footer)
-
-        log_panel = QFrame()
-        log_panel.setObjectName("move-log-panel")
-        log_panel.setStyleSheet(
-            "QFrame#move-log-panel { background: #09243A; border: 1px solid #286080; "
-            "border-radius: 13px; }"
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(10, 5, 10, 5)
+        row.setSpacing(7)
+        icon = QLabel(icon_text)
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon.setStyleSheet("font-size: 23px; color: #FFD45A;")
+        value_label.setStyleSheet(
+            "background: transparent; border: none; padding: 2px 1px; "
+            "font-size: 11px; font-weight: 900; color: #F5FAFF;"
         )
-        log_layout = QVBoxLayout(log_panel)
-        log_layout.setContentsMargins(14, 10, 14, 10)
-        log_layout.setSpacing(6)
-        log_title = QLabel("MOVE LOG")
-        log_title.setStyleSheet("font-size: 10px; font-weight: 800; color: #B9C7D3;")
-        self.move_log = QListWidget()
-        self.move_log.setObjectName("move-log")
-        self.move_log.setMaximumHeight(92)
-        self.move_log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        log_layout.addWidget(log_title)
-        log_layout.addWidget(self.move_log)
-        root.addWidget(log_panel)
+        row.addWidget(icon)
+        row.addWidget(value_label)
+        return frame
+
+    def _set_game_mode(self, mode: str) -> None:
+        """Resize the dock and reveal internals in the academic DSA Lab mode."""
+        mode = "dsa" if mode == "dsa" else "play"
+        self.dsa_monitor.set_mode(mode)
+        self.resizeDocks(
+            [self.dsa_monitor_dock],
+            [445 if mode == "dsa" else 370],
+            Qt.Orientation.Horizontal,
+        )
+        self._set_status(
+            "DSA Lab enabled. Inspect structure internals and live operation history."
+            if mode == "dsa" else
+            "Play Mode enabled. The game board has priority."
+        )
 
     @staticmethod
     def _pile_group(caption: str, pile_widget: QWidget) -> QWidget:
@@ -944,6 +1033,8 @@ class MainWindow(QMainWindow):
             self.timer_label.setText(
                 f"TIME  {self._format_elapsed_time(elapsed)}"
             )
+        if hasattr(self, "dsa_monitor"):
+            self.dsa_monitor.refresh_stats(self.engine)
 
     def _mark_player_action(self) -> None:
         """Start the clock after the first successful move and stop on victory."""
@@ -976,13 +1067,42 @@ class MainWindow(QMainWindow):
         self._selected_pile_id = None
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
-        color = "#FFD4D8" if error else "#DCE7EE"
-        border = "#A83A4D" if error else "#26445A"
         self.status_label.setText(message)
-        self.status_label.setStyleSheet(
-            f"background: #0B2438; color: {color}; border: 1px solid {border}; "
-            "border-radius: 8px; padding: 10px 14px;"
-        )
+        if error:
+            self.feedback_title_label.setText("Move Needs Attention")
+            self.feedback_icon_label.setText("!")
+            self.feedback_icon_label.setStyleSheet(
+                "background: #B62B3C; color: white; border: 1px solid #FF9AA5; "
+                "border-radius: 15px; font-size: 20px; font-weight: 900;"
+            )
+            self.feedback_panel.setStyleSheet(
+                "QFrame#feedback-panel { background: #3B1723; "
+                "border: 2px solid #E15C6C; border-radius: 14px; }"
+            )
+            self.status_label.setStyleSheet(
+                "background: transparent; color: #FFE6E9; border: none; font-size: 11px; padding: 3px 4px;"
+            )
+        else:
+            title = (
+                "Great Move!" if message in ("Move completed.", "Card dropped successfully.")
+                else "Stock Updated" if message.startswith("Drew ")
+                else "Hint" if message.lower().startswith("hint")
+                else "Game Status"
+            )
+            self.feedback_title_label.setText(title)
+            self.feedback_icon_label.setText("✓")
+            self.feedback_icon_label.setStyleSheet(
+                "background: #23B948; color: white; border: 1px solid #A7FF9A; "
+                "border-radius: 15px; font-size: 20px; font-weight: 900;"
+            )
+            self.feedback_panel.setStyleSheet(
+                "QFrame#feedback-panel { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, "
+                "stop:0 rgba(14, 90, 52, 238), stop:1 rgba(5, 49, 34, 245)); "
+                "border: 2px solid #78E95D; border-radius: 14px; }"
+            )
+            self.status_label.setStyleSheet(
+                "background: transparent; color: #F4FFF5; border: none; font-size: 11px; padding: 3px 4px;"
+            )
 
     def _refresh_board(self) -> None:
         state = self.engine.state
