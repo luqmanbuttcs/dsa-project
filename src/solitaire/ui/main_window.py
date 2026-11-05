@@ -214,6 +214,24 @@ class MainWindow(QMainWindow):
         header.addWidget(self.redo_button)
         root.addLayout(header)
 
+        self.victory_panel = QFrame()
+        self.victory_panel.setObjectName("victory-panel")
+        self.victory_panel.setStyleSheet(
+            "QFrame#victory-panel { background: #0B633D; "
+            "border: 1px solid #7BD6A9; border-radius: 10px; }"
+            "QLabel { color: #FFFFFF; font-size: 14px; font-weight: 800; "
+            "padding: 9px 14px; }"
+        )
+        victory_layout = QHBoxLayout(self.victory_panel)
+        victory_layout.setContentsMargins(8, 2, 8, 2)
+        self.victory_label = QLabel(
+            "VICTORY  •  All 52 cards are in their foundations."
+        )
+        self.victory_label.setObjectName("victory-message")
+        victory_layout.addWidget(self.victory_label)
+        self.victory_panel.setVisible(False)
+        root.addWidget(self.victory_panel)
+
         board = QFrame()
         board.setObjectName("game-board")
         board.setStyleSheet(
@@ -976,6 +994,14 @@ class MainWindow(QMainWindow):
         for event in self.engine.move_history[-8:]:
             self.move_log.addItem(event.description)
         self.move_log.scrollToBottom()
+        is_won = state.status is GameStatus.WON
+        self.victory_panel.setVisible(is_won)
+        if is_won:
+            self.victory_label.setText(
+                "VICTORY  •  All 52 cards are home.  "
+                f"Score: {state.score}  •  Time: "
+                f"{self._format_elapsed_time(state.elapsed_seconds)}"
+            )
         if hasattr(self, "dsa_monitor"):
             self.dsa_monitor.refresh(
                 self.engine,
