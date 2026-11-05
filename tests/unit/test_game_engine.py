@@ -194,6 +194,7 @@ def test_invalid_tableau_move_does_not_mutate_piles():
     assert state.tableau["tableau-2"].cards_bottom_to_top() == before_destination
     assert state.card_index == before_index
     assert state.move_count == before_move_count
+    assert not engine.can_undo
     assert engine.tracker.events[-1].outcome == "REJECTED"
     state.assert_invariants()
 
@@ -702,4 +703,75 @@ def test_empty_undo_and_redo_return_false_without_mutating_state():
     assert state.card_index == original_index
     assert [card.card_id for card in state.stock.to_list()] == original_stock_ids
     assert state.move_count == 0
+    state.assert_invariants()
+
+
+
+def test_undo_redo_restores_waste_to_tableau_move():
+    state = arranged_move_state(destination_card_id="D-9")
+    selected = move_card_from_stock_to_waste(state, "C-8")
+    engine = GameEngine(state)
+    original_destination_ids = [
+        card.card_id
+        for card in state.tableau["tableau-2"].cards_bottom_to_top()
+    ]
+    original_index = dict(state.card_index)
+
+    engine.move_waste_to_tableau("tableau-2")
+    assert state.waste.is_empty()
+    assert state.tableau["tableau-2"].peek() is selected
+
+    assert engine.undo()
+    assert state.waste.peek() is selected
+    assert [
+        card.card_id
+        for card in state.tableau["tableau-2"].cards_bottom_to_top()
+    ] == original_destination_ids
+    assert state.card_index == original_index
+    state.assert_invariants()
+
+    assert engine.redo()
+    assert state.waste.is_empty()
+    assert state.tableau["tableau-2"].peek() is selected
+    state.assert_invariants()
+
+
+def test_undo_redo_restores_waste_to_foundation_move():
+    state = arranged_move_state()
+    selected = move_card_from_stock_to_waste(state, "S-A")
+    engine = GameEngine(state)
+    original_index = dict(state.card_index)
+
+    engine.move_waste_to_foundation(Suit.SPADES)
+    assert state.waste.is_empty()
+    assert state.foundations[Suit.SPADES].peek() is selected
+
+    assert engine.undo()
+    assert state.waste.peek() is selected
+    assert state.foundations[Suit.SPADES].is_empty()
+    assert state.card_index == original_index
+    state.assert_invariants()
+
+    assert engine.redo()
+    assert state.waste.is_empty()
+    assert state.foundations[Suit.SPADES].peek() is selected
+    state.assert_invariants()
+
+
+def test_undo_does_not_rewind_elapsed_time_or_draw_mode_preference():
+    state = create_new_game(Random(904), draw_count=3)
+    engine = GameEngine(state)
+    state.elapsed_seconds = 10
+
+    engine.draw_from_stock()
+    state.elapsed_seconds = 57
+    engine.set_draw_count(1)
+
+    assert engine.undo()
+    assert state.elapsed_seconds == 57
+    assert state.draw_count == 1
+
+    assert engine.redo()
+    assert state.elapsed_seconds == 57
+    assert state.draw_count == 1
     state.assert_invariants()
