@@ -1061,7 +1061,8 @@ class MainWindow(QMainWindow):
             self.timer_label.setText(
                 f"TIME  {self._format_elapsed_time(elapsed)}"
             )
-        if hasattr(self, "dsa_monitor"):
+        # DEBUG ISOLATION: skip dashboard timer refresh during action signal handling.
+        if False and hasattr(self, "dsa_monitor"):
             self.dsa_monitor.refresh_stats(self.engine)
 
     def _mark_player_action(self) -> None:
