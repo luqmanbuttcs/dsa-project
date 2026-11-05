@@ -375,6 +375,7 @@ class DSAMonitorPanel(QWidget):
         is_lab = self._current_mode == "dsa"
         self.play_mode_button.setChecked(not is_lab)
         self.dsa_lab_button.setChecked(is_lab)
+        self.main_tabs.setCurrentIndex(0)
         self.inspect_toggle.setChecked(is_lab)
 
     def refresh_stats(self, engine: GameEngine) -> None:
