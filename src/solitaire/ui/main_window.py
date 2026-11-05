@@ -178,7 +178,7 @@ class MainWindow(QMainWindow):
             "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
             "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
-        header.addWidget(self._metric_card("✣", self.moves_label))
+        self.moves_metric = self._metric_card("✣", self.moves_label)
 
         self.score_label = QLabel(f"SCORE  {self.engine.state.score}")
         self.score_label.setObjectName("score-label")
@@ -186,7 +186,7 @@ class MainWindow(QMainWindow):
             "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
             "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
-        header.addWidget(self._metric_card("🏆", self.score_label))
+        self.score_metric = self._metric_card("🏆", self.score_label)
 
         self.timer_label = QLabel("TIME  00:00")
         self.timer_label.setObjectName("timer-label")
@@ -194,7 +194,10 @@ class MainWindow(QMainWindow):
             "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
             "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
-        header.addWidget(self._metric_card("◷", self.timer_label))
+        self.timer_metric = self._metric_card("◷", self.timer_label)
+        header.addWidget(self.timer_metric)
+        header.addWidget(self.moves_metric)
+        header.addWidget(self.score_metric)
 
         self.hint_button = QPushButton("💡 Hint")
         self.hint_button.setObjectName("hint-button")
