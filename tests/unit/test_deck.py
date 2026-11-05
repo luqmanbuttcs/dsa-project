@@ -61,3 +61,65 @@ def test_rank_labels():
     assert Rank.JACK.label == "J"
     assert Rank.QUEEN.label == "Q"
     assert Rank.KING.label == "K"
+
+
+def test_shuffle_changes_order_for_known_seed():
+    deck = DeckFactory.create_standard_deck()
+    original_order = [card.card_id for card in deck]
+
+    DeckFactory.shuffle(deck, Random(20261105))
+
+    assert [card.card_id for card in deck] != original_order
+    assert len({card.card_id for card in deck}) == 52
+
+
+def test_created_cards_expose_suit_rank_and_face_state():
+    from solitaire.domain.card import Card
+
+    card = Card(Suit.HEARTS, Rank.ACE)
+
+    assert card.suit is Suit.HEARTS
+    assert card.rank is Rank.ACE
+    assert card.face_up is False
+    card.turn_face_up()
+    assert card.face_up is True
+    card.turn_face_down()
+    assert card.face_up is False
+    assert card.card_id == "H-A"
+
+
+def test_card_rejects_invalid_attributes():
+    from solitaire.domain.card import Card
+
+    try:
+        Card("Hearts", Rank.ACE)  # type: ignore[arg-type]
+    except TypeError as error:
+        assert "suit" in str(error)
+    else:
+        raise AssertionError("Expected invalid suit type to be rejected")
+
+    try:
+        Card(Suit.HEARTS, 1)  # type: ignore[arg-type]
+    except TypeError as error:
+        assert "rank" in str(error)
+    else:
+        raise AssertionError("Expected invalid rank type to be rejected")
+
+    try:
+        Card(Suit.HEARTS, Rank.ACE, 1)  # type: ignore[arg-type]
+    except TypeError as error:
+        assert "face_up" in str(error)
+    else:
+        raise AssertionError("Expected non-boolean face state to be rejected")
+
+
+def test_deck_validation_rejects_missing_standard_card():
+    deck = DeckFactory.create_standard_deck()
+    deck[-1] = deck[0]
+
+    try:
+        DeckFactory.validate_standard_deck(deck)
+    except ValueError as error:
+        assert "duplicate" in str(error)
+    else:
+        raise AssertionError("Expected duplicate/missing card to be rejected")
