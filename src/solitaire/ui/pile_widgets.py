@@ -79,10 +79,10 @@ class WasteWidget(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("waste-widget")
-        self.setMinimumSize(CARD_WIDTH * 3 + 16, CARD_HEIGHT)
+        self.setMinimumSize(CARD_WIDTH + 98, CARD_HEIGHT)
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(-48)
+        self._layout.setSpacing(-67)
         self._buttons: list[CardButton] = []
 
     def set_cards(self, cards: list[Card]) -> None:
