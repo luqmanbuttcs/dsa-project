@@ -88,3 +88,17 @@ def test_initial_deal_records_all_five_required_data_structures():
     assert tracker.count(StructureName.LINKED_LIST) == 28
     assert tracker.count(StructureName.DICTIONARY) == 52
     state.assert_invariants()
+
+
+
+def test_invariants_reject_face_down_card_above_face_up_tableau_card():
+    state = create_new_game(Random(77))
+    column = state.tableau["tableau-2"]
+    cards = column.cards_bottom_to_top()
+
+    # Force the lower card face-up and the top card face-down.
+    cards[0].turn_face_up()
+    cards[1].turn_face_down()
+
+    with pytest.raises(AssertionError):
+        state.assert_invariants()
