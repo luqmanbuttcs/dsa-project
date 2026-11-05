@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QByteArray, QPoint, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QDrag, QPainter, QColor, QPen, QFont, QLinearGradient, QPainterPath
+from PyQt6.QtCore import QByteArray, QPoint, Qt, pyqtSignal
+from PyQt6.QtGui import QDrag
 from PyQt6.QtCore import QMimeData
 from PyQt6.QtWidgets import QApplication, QPushButton
 
 from solitaire.domain.card import Card, CardColor
-from solitaire.ui.theme import paint_card_back
 
 
 CARD_MIME_TYPE = "application/x-klondike-card"
@@ -78,95 +77,33 @@ class CardButton(QPushButton):
         self._apply_card_style()
 
     def _apply_card_style(self) -> None:
-        """Keep semantic text for accessibility/tests; render the card face ourselves."""
         card = self._card
+        highlighted = self._selected_highlight or self._drag_highlight
         if not card.face_up:
-            self.setText("✦\n✦")
-        else:
-            self.setText(f"{card.rank.label}\n{card.suit.symbol}")
-        self.setStyleSheet(
-            "QPushButton { background: transparent; color: transparent; "
-            "border: none; padding: 0; }"
-            "QPushButton:hover { background: transparent; }"
-            "QPushButton:disabled { background: transparent; color: transparent; }"
-        )
-        self.update()
-
-    def paintEvent(self, event) -> None:
-        """Paint full-size premium playing cards and ornamental blue card backs."""
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        if not self._card.face_up:
-            paint_card_back(
-                painter,
-                QRectF(self.rect()),
-                selected=self._selected_highlight or self._drag_highlight,
-                radius=9.0,
+            border = "#FFD65A" if self._drag_highlight else "#A7D3F5"
+            width = "3px" if self._drag_highlight else "2px"
+            self.setText("❧\n♠\n❧")
+            self.setStyleSheet(
+                "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #1679C5, stop:0.48 #07539A, stop:1 #032C59); color: #F4FAFF; "
+                f"border: {width} solid {border}; border-radius: 9px; "
+                "font-family: Georgia, 'Times New Roman', serif; font-size: 27px; font-weight: 800; }"
+                "QPushButton:disabled { background: #07539A; color: #F4FAFF; }"
             )
-            painter.end()
             return
 
-        bounds = QRectF(self.rect()).adjusted(3, 3, -3, -3)
-        radius = 9.0
-        # Soft, built-in shadow; no external image or graphics dependency.
-        shadow = bounds.translated(0, 2)
-        shadow_path = QPainterPath()
-        shadow_path.addRoundedRect(shadow, radius, radius)
-        painter.fillPath(shadow_path, QBrush(QColor(0, 14, 24, 90)))
-
-        card_path = QPainterPath()
-        card_path.addRoundedRect(bounds, radius, radius)
-        face_gradient = QLinearGradient(bounds.topLeft(), bounds.bottomLeft())
-        face_gradient.setColorAt(0.0, QColor("#FFFFFF"))
-        face_gradient.setColorAt(1.0, QColor("#F1EDE3"))
-        painter.fillPath(card_path, QBrush(face_gradient))
-        painter.setPen(QPen(QColor("#D8D5CC"), 1.0))
-        painter.drawPath(card_path)
-
-        ink = QColor("#D51E35") if self._card.color is CardColor.RED else QColor("#101923")
-        rank_font = QFont("Georgia", 19, QFont.Weight.Bold)
-        painter.setFont(rank_font)
-        painter.setPen(ink)
-        painter.drawText(
-            QRectF(bounds.left() + 8, bounds.top() + 5, 34, 25),
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            self._card.rank.label,
+        ink = "#D51E35" if card.color is CardColor.RED else "#142332"
+        border = "#FFD65A" if highlighted else "#D9E1E5"
+        border_width = "3px" if highlighted else "1px"
+        self.setText(f"{card.rank.label}\n{card.suit.symbol}")
+        self.setStyleSheet(
+            "QPushButton { "
+            f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #FFFFFF, stop:1 #F4F0E7); color: {ink}; "
+            f"border: {border_width} solid {border}; "
+            "border-radius: 10px; font-family: Georgia, 'Times New Roman', serif; "
+            "font-size: 27px; font-weight: 900; text-align: center; padding: 6px; }"
+            "QPushButton:hover { background: #FFFFFF; }"
+            f"QPushButton:disabled {{ background: #FFFDF8; color: {ink}; }}"
         )
-        suit_small = QFont("Segoe UI Symbol", 17, QFont.Weight.Bold)
-        painter.setFont(suit_small)
-        painter.drawText(
-            QRectF(bounds.left() + 8, bounds.top() + 26, 31, 25),
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            self._card.suit.symbol,
-        )
-
-        central_font = QFont("Segoe UI Symbol", 74, QFont.Weight.Bold)
-        painter.setFont(central_font)
-        painter.drawText(
-            QRectF(bounds.left() + 17, bounds.top() + 37, bounds.width() - 34, bounds.height() - 48),
-            Qt.AlignmentFlag.AlignCenter,
-            self._card.suit.symbol,
-        )
-
-        # A small mirrored corner index gives the card a traditional casino-deck finish.
-        painter.save()
-        painter.translate(bounds.right() - 9, bounds.bottom() - 8)
-        painter.rotate(180)
-        painter.setFont(QFont("Georgia", 11, QFont.Weight.Bold))
-        painter.drawText(QRectF(0, 0, 27, 17), Qt.AlignmentFlag.AlignLeft, self._card.rank.label)
-        painter.setFont(QFont("Segoe UI Symbol", 10, QFont.Weight.Bold))
-        painter.drawText(QRectF(1, 13, 24, 15), Qt.AlignmentFlag.AlignLeft, self._card.suit.symbol)
-        painter.restore()
-
-        if self._selected_highlight or self._drag_highlight:
-            painter.setPen(QPen(QColor(255, 199, 55, 85), 7.0))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(bounds.adjusted(1, 1, -1, -1), radius, radius)
-            painter.setPen(QPen(QColor("#FFD65A"), 2.4))
-            painter.drawRoundedRect(bounds.adjusted(2, 2, -2, -2), radius, radius)
-        painter.end()
 
     def mousePressEvent(self, event) -> None:
         if event.button() is Qt.MouseButton.LeftButton:
