@@ -316,23 +316,26 @@ Latest confirmed CI result: **69 passed**.
 **Still pending:** PyQt6 desktop interface, card interaction/animations, visible DSA monitor, final UI smoke tests, and optional enhancements.
 
 
-## 10. Phase 4 — Basic User Interface implementation status
+## 10. Phase 4 — PyQt6 User Interface: complete
 
-**Completed on `feat/core-data-structures`:**
-- Added the application entry point: `python -m solitaire.main`.
-- Added a PyQt6 `QMainWindow` with the approved navy/green-felt visual direction and deliberate outer spacing.
-- Rendered the stock pile, up to three visible waste cards, four suit foundations, and seven tableau columns.
-- Added click-to-select and click-to-move for face-up tableau sequences and the top waste card.
-- Added stock Draw 1 / Draw 3 selection, New Game, Undo, Redo, move count, inline status feedback, and a separate player Move Log.
-- Kept all state mutation inside `GameEngine`; widgets render the domain state and request engine actions.
-- Added offscreen Qt smoke tests and installed the Qt system runtime libraries in GitHub Actions.
+Implemented on `feat/core-data-structures`:
 
-**Not included in this basic UI milestone:** drag-and-drop, card movement/flip animations, and the expanded live DSA Monitor. Those remain later UI/monitor milestones.
+- PyQt6 `QMainWindow` with navy/green-felt design and deliberate spacing.
+- Stock, visible Waste, four Foundations, seven Tableau columns, and horizontal Tableau scrolling when needed.
+- Click-to-select/click-to-move and drag-and-drop from Waste/face-up Tableau cards to Tableau or Foundation targets.
+- All drops call `GameEngine`; invalid drops leave piles, card index, and move count untouched.
+- Legal drag destinations are derived from `GameEngine.find_hints()`, not guessed by the UI.
+- Animated card travel, stock draws, and newly exposed face-up flips after the engine commits its action.
+- Visible card moves animate on Undo/Redo; Reduce motion skips movement/flip overlays while retaining the same model/operation trace.
+- Draw 1/Draw 3, New Game with discard confirmation, Undo, Redo, Hint, timer, score, keyboard shortcuts, and non-modal victory banner.
+- Collapsible right-side DSA Monitor with Overview, Structures, and History tabs; player Move Log remains separate.
+- Monitor displays actual tracker event counts, the latest player action's operation breakdown, timestamped ordered history, and details for all five required structures.
 
-**Entry point:** `python -m solitaire.main`
+**Automated UI verification:** drop-event routing and rejection, animation completion, reduced motion, monitor updates, keyboard shortcuts, 1280×800 minimum layout, dock show/hide, restart safeguards, and victory/undo banner state.
 
-**Phase 4 verification:** GitHub Actions passes **75 tests**, including six offscreen PyQt6 UI smoke tests. Latest confirmed run: https://github.com/luqmanbuttcs/dsa-project/actions/runs/41991249772
+**Remaining manual acceptance:** check real mouse drag/drop feel, display scaling, clipping, and animation smoothness on the target Windows computer. Automated offscreen tests cannot certify those physical-display details.
 
+**Entry point:** `python -m solitaire.main`.
 
 ## 11. Validation and Testing — completed
 
