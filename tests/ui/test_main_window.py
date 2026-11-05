@@ -382,12 +382,12 @@ def test_dsa_monitor_shows_real_operations_and_current_structure_state(app):
 
     assert window.dsa_monitor_dock.isVisible()
     assert window.dsa_monitor.count_table.rowCount() == 5
-    assert "24 cards" in window.dsa_monitor.count_table.item(2, 1).text()
+    assert "24 | F:" in window.dsa_monitor.count_table.item(2, 1).text()
     assert "52 / 52 entries" == window.dsa_monitor.count_table.item(4, 1).text()
 
     window.stock_button.click()
     assert "Queue" in window.dsa_monitor.latest_operation.text()
-    assert "DEQUEUE" in window.dsa_monitor.latest_operation.text()
+    assert "Queue: DEQUEUE ×1" in window.dsa_monitor.latest_operation.text()
     assert window.dsa_monitor.operation_history.count() > 0
     assert any(
         "Queue · DEQUEUE" in window.dsa_monitor.operation_history.item(index).text()
@@ -446,4 +446,50 @@ def test_keyboard_shortcuts_are_installed(app):
     window = MainWindow(GameEngine(create_new_game(Random(4502))))
     shortcuts = {action.shortcut().toString() for action in window._shortcut_actions}
     assert {"Ctrl+Z", "Ctrl+Y", "Ctrl+N", "H", "Space"} <= shortcuts
+    window.close()
+
+
+
+def test_window_resizes_to_design_minimum_without_hiding_scrollable_board(app):
+    window = MainWindow(GameEngine(create_new_game(Random(4503))))
+    window.resize(1280, 800)
+    window.show()
+    app.processEvents()
+
+    assert window.minimumWidth() == 1280
+    assert window.minimumHeight() == 800
+    assert window.width() >= 1280
+    assert window.height() >= 800
+    scroll = window.findChild(__import__(
+        "PyQt6.QtWidgets", fromlist=["QScrollArea"]
+    ).QScrollArea, "tableau-scroll-area")
+    assert scroll is not None
+    assert scroll.horizontalScrollBarPolicy() is Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    assert window.dsa_monitor_dock.isVisible()
+    window.dsa_monitor_button.click()
+    assert not window.dsa_monitor_dock.isVisible()
+    window.dsa_monitor_button.click()
+    assert window.dsa_monitor_dock.isVisible()
+    window.close()
+
+
+def test_new_game_confirmation_can_be_cancelled_without_losing_current_game(
+    app, monkeypatch
+):
+    engine = GameEngine(create_new_game(Random(4504)))
+    window = MainWindow(engine)
+    window.stock_button.click()
+    assert engine.state.move_count == 1
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.No,
+    )
+    window.new_game_button.click()
+
+    assert window.engine is engine
+    assert engine.state.stock.size() == 23
+    assert engine.state.waste.size() == 1
+    assert engine.state.move_count == 1
     window.close()
