@@ -520,9 +520,7 @@ class MainWindow(QMainWindow):
         self._mark_player_action()
         self._clear_selection()
         self._set_status(f"Drew {len(drawn)} card(s). Select the top waste card to move it.")
-        # DEBUG ISOLATION: skip all widget rebuilding during stock draw.
-        if False:
-            self._refresh_board()
+        self._refresh_board()
         if drawn and stock_visual is not None:
             self._animate_move_visuals(
                 {card.card_id: stock_visual for card in drawn}
@@ -1064,8 +1062,7 @@ class MainWindow(QMainWindow):
             self.timer_label.setText(
                 f"TIME  {self._format_elapsed_time(elapsed)}"
             )
-        # DEBUG ISOLATION: skip dashboard timer refresh during action signal handling.
-        if False and hasattr(self, "dsa_monitor"):
+        if hasattr(self, "dsa_monitor"):
             self.dsa_monitor.refresh_stats(self.engine)
 
     def _mark_player_action(self) -> None:
@@ -1168,8 +1165,7 @@ class MainWindow(QMainWindow):
                 f"Score: {state.score}  •  Time: "
                 f"{self._format_elapsed_time(state.elapsed_seconds)}"
             )
-        # DEBUG ISOLATION: skip the monitor refresh to identify the native Qt abort.
-        if False and hasattr(self, "dsa_monitor"):
+        if hasattr(self, "dsa_monitor"):
             self.dsa_monitor.refresh(
                 self.engine,
                 selected_card_id=self._selected_card_id,
