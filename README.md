@@ -96,7 +96,7 @@ The instructor's Card and Deck phase and Tableau and Foundation phase are implem
 - Redo reapplies the saved state; a new successful action clears the redo branch.
 - Undo/redo restoration uses the custom Stack, Queue, Linked List, and Dictionary-backed model. Operation events remain append-only and identify PLAY, UNDO, REDO, and HISTORY contexts.
 
-Verification: GitHub Actions reports **64 passing tests** on the current branch.
+Verification at Phase 3 completion: **69 passing tests**. The current Phase 4 branch has 75 passing tests including UI smoke tests.
 
 
 ## Phase 4 — User Interface
