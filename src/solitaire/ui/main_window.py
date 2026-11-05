@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QMenu,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -49,6 +50,7 @@ from solitaire.ui.pile_widgets import (
     TableauColumnWidget,
     WasteWidget,
 )
+from solitaire.ui.theme import APP_STYLESHEET, FeltBoard
 
 
 class MainWindow(QMainWindow):
@@ -89,7 +91,11 @@ class MainWindow(QMainWindow):
             Qt.DockWidgetArea.RightDockWidgetArea
             | Qt.DockWidgetArea.BottomDockWidgetArea
         )
-        self.dsa_monitor_dock.setMinimumWidth(300)
+        self.dsa_monitor_dock.setMinimumWidth(340)
+        self.dsa_monitor_dock.setStyleSheet(
+            "QDockWidget { color: #F4F8FF; background: #081D31; border: 1px solid #244965; }"
+            "QDockWidget::title { background: #07182A; color: #EAF4FF; padding: 10px 12px; font-weight: 800; border-bottom: 1px solid #214763; }"
+        )
         self.dsa_monitor_dock.setWidget(self.dsa_monitor)
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self.dsa_monitor_dock
@@ -100,7 +106,7 @@ class MainWindow(QMainWindow):
         )
         self.dsa_monitor_button.setChecked(True)
         self.resizeDocks(
-            [self.dsa_monitor_dock], [350], Qt.Orientation.Horizontal
+            [self.dsa_monitor_dock], [370], Qt.Orientation.Horizontal
         )
         self._install_shortcuts()
         self._clock_timer = QTimer(self)
@@ -123,23 +129,14 @@ class MainWindow(QMainWindow):
         return dict(self._foundation_widgets)
 
     def _build_ui(self) -> None:
-        self.setStyleSheet(
-            "QMainWindow, QWidget#central-widget { background: #071B2B; color: #F4F7FA; }"
-            "QLabel { color: #F4F7FA; }"
-            "QPushButton { border-radius: 8px; padding: 8px 13px; font-weight: 650; }"
-            "QPushButton:focus { border: 2px solid #F5C84C; }"
-            "QComboBox { background: #102F46; color: #F4F7FA; border: 1px solid #38576B; "
-            "border-radius: 7px; padding: 7px 10px; min-width: 90px; }"
-            "QListWidget { background: #0B2438; color: #DDE7EE; border: 1px solid #26445A; "
-            "border-radius: 8px; padding: 6px; }"
-        )
+        self.setStyleSheet(APP_STYLESHEET)
 
         central = QWidget()
         central.setObjectName("central-widget")
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(24, 20, 24, 20)
-        root.setSpacing(18)
+        root.setContentsMargins(16, 12, 16, 12)
+        root.setSpacing(11)
 
         header = QHBoxLayout()
         header.setSpacing(16)
@@ -147,9 +144,9 @@ class MainWindow(QMainWindow):
         title_group.setSpacing(3)
         title = QLabel("♠  Klondike Solitaire")
         title.setObjectName("game-title")
-        title.setStyleSheet("font-size: 25px; font-weight: 800; color: #FFFFFF;")
-        subtitle = QLabel("CSC200  •  Data Structures & Algorithms")
-        subtitle.setStyleSheet("font-size: 11px; color: #B9C7D3;")
+        title.setStyleSheet("font-family: Georgia, 'Times New Roman', serif; font-size: 27px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.4px;")
+        subtitle = QLabel("CSC200  •  DSA Edition")
+        subtitle.setStyleSheet("font-size: 10px; font-weight: 700; color: #8FFFC1; background: #064832; border: 1px solid #168C60; border-radius: 12px; padding: 4px 10px;")
         title_group.addWidget(title)
         title_group.addWidget(subtitle)
         header.addLayout(title_group)
@@ -158,32 +155,32 @@ class MainWindow(QMainWindow):
         self.moves_label = QLabel("MOVES  0")
         self.moves_label.setObjectName("moves-label")
         self.moves_label.setStyleSheet(
-            "background: #0B2438; border: 1px solid #26445A; border-radius: 8px; "
-            "padding: 9px 12px; font-size: 12px; font-weight: 700;"
+            "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
+            "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
         header.addWidget(self.moves_label)
 
         self.score_label = QLabel(f"SCORE  {self.engine.state.score}")
         self.score_label.setObjectName("score-label")
         self.score_label.setStyleSheet(
-            "background: #0B2438; border: 1px solid #26445A; border-radius: 8px; "
-            "padding: 9px 12px; font-size: 12px; font-weight: 700;"
+            "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
+            "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
         header.addWidget(self.score_label)
 
         self.timer_label = QLabel("TIME  00:00")
         self.timer_label.setObjectName("timer-label")
         self.timer_label.setStyleSheet(
-            "background: #0B2438; border: 1px solid #26445A; border-radius: 8px; "
-            "padding: 9px 12px; font-size: 12px; font-weight: 700;"
+            "background: #0B2B46; border: 1px solid #23506B; border-radius: 11px; "
+            "padding: 9px 13px; font-size: 12px; font-weight: 800; color: #F6FBFF;"
         )
         header.addWidget(self.timer_label)
 
         self.hint_button = QPushButton("💡 Hint")
         self.hint_button.setObjectName("hint-button")
         self.hint_button.setStyleSheet(
-            "QPushButton { background: #B98216; color: #142332; }"
-            "QPushButton:hover { background: #D69A24; }"
+            "QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #FFD965, stop:1 #D89B23); color: #172334; border: 1px solid #FFE9A4; border-radius: 12px; font-weight: 800; padding: 8px 15px; }"
+            "QPushButton:hover { background: #FFE28A; }"
         )
         self.hint_button.clicked.connect(self._show_hint)
         header.addWidget(self.hint_button)
@@ -197,8 +194,8 @@ class MainWindow(QMainWindow):
         self.new_game_button = QPushButton("New Game")
         self.new_game_button.setObjectName("new-game-button")
         self.new_game_button.setStyleSheet(
-            "QPushButton { background: #0879D1; color: white; }"
-            "QPushButton:hover { background: #168BE5; }"
+            "QPushButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #1499F4, stop:1 #0067C9); color: white; border: 1px solid #54B9FF; border-radius: 12px; font-weight: 800; padding: 8px 15px; }"
+            "QPushButton:hover { background: #1CA4FF; }"
         )
         self.new_game_button.clicked.connect(self._new_game)
         header.addWidget(self.new_game_button)
@@ -212,13 +209,21 @@ class MainWindow(QMainWindow):
         self.redo_button.setObjectName("redo-button")
         self.redo_button.clicked.connect(self._redo)
         header.addWidget(self.redo_button)
+
+        self.settings_button = QPushButton("⚙ Settings")
+        self.settings_button.setObjectName("settings-button")
+        self.settings_button.setStyleSheet(
+            "QPushButton { background: #102F49; color: #DCEBFA; border: 1px solid #294D68; border-radius: 12px; padding: 8px 13px; }"
+            "QPushButton:hover { background: #173D5B; border-color: #69A9D5; }"
+        )
+        header.addWidget(self.settings_button)
         root.addLayout(header)
 
         self.victory_panel = QFrame()
         self.victory_panel.setObjectName("victory-panel")
         self.victory_panel.setStyleSheet(
-            "QFrame#victory-panel { background: #0B633D; "
-            "border: 1px solid #7BD6A9; border-radius: 10px; }"
+            "QFrame#victory-panel { background: #075C35; "
+            "border: 2px solid #82F36F; border-radius: 14px; }"
             "QLabel { color: #FFFFFF; font-size: 14px; font-weight: 800; "
             "padding: 9px 14px; }"
         )
@@ -232,15 +237,11 @@ class MainWindow(QMainWindow):
         self.victory_panel.setVisible(False)
         root.addWidget(self.victory_panel)
 
-        board = QFrame()
+        board = FeltBoard()
         board.setObjectName("game-board")
-        board.setStyleSheet(
-            "QFrame#game-board { background: #075B35; border: 1px solid #27764D; "
-            "border-radius: 14px; }"
-        )
         board_layout = QVBoxLayout(board)
-        board_layout.setContentsMargins(22, 22, 22, 22)
-        board_layout.setSpacing(22)
+        board_layout.setContentsMargins(20, 18, 20, 18)
+        board_layout.setSpacing(18)
 
         top_row = QHBoxLayout()
         top_row.setSpacing(14)
@@ -326,12 +327,25 @@ class MainWindow(QMainWindow):
         )
         footer.addWidget(self.reduce_motion_check)
 
+        settings_menu = QMenu(self.settings_button)
+        draw_one_action = settings_menu.addAction("Draw 1")
+        draw_one_action.triggered.connect(lambda: self.draw_mode_combo.setCurrentIndex(0))
+        draw_three_action = settings_menu.addAction("Draw 3")
+        draw_three_action.triggered.connect(lambda: self.draw_mode_combo.setCurrentIndex(1))
+        settings_menu.addSeparator()
+        self.reduce_motion_action = QAction("Reduce Motion", self)
+        self.reduce_motion_action.setCheckable(True)
+        self.reduce_motion_action.toggled.connect(self.reduce_motion_check.setChecked)
+        self.reduce_motion_check.toggled.connect(self.reduce_motion_action.setChecked)
+        settings_menu.addAction(self.reduce_motion_action)
+        self.settings_button.setMenu(settings_menu)
+
         self.status_label = QLabel("Select a face-up card, then select a destination.")
         self.status_label.setObjectName("game-status")
         self.status_label.setWordWrap(True)
         self.status_label.setStyleSheet(
-            "background: #0B2438; color: #DCE7EE; border: 1px solid #26445A; "
-            "border-radius: 8px; padding: 10px 14px;"
+            "background: #08263B; color: #E7F3FC; border: 1px solid #2B5E78; "
+            "border-radius: 10px; padding: 10px 14px;"
         )
         footer.addWidget(self.status_label, 1)
         root.addLayout(footer)
@@ -339,8 +353,8 @@ class MainWindow(QMainWindow):
         log_panel = QFrame()
         log_panel.setObjectName("move-log-panel")
         log_panel.setStyleSheet(
-            "QFrame#move-log-panel { background: #0B2438; border: 1px solid #26445A; "
-            "border-radius: 10px; }"
+            "QFrame#move-log-panel { background: #09243A; border: 1px solid #286080; "
+            "border-radius: 13px; }"
         )
         log_layout = QVBoxLayout(log_panel)
         log_layout.setContentsMargins(14, 10, 14, 10)

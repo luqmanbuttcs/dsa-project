@@ -1,0 +1,90 @@
+"""Emerald casino-felt theme and custom painted game surface."""
+
+from __future__ import annotations
+
+from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
+from PyQt6.QtWidgets import QFrame
+
+NAVY = "#071D32"
+NAVY_RAISED = "#0B2B46"
+PANEL = "#0B243A"
+PANEL_BORDER = "#28516D"
+EMERALD = "#006B35"
+EMERALD_DARK = "#004B2A"
+GOLD = "#FFD15C"
+IVORY = "#FFFDF7"
+TEXT = "#F7FAFF"
+TEXT_MUTED = "#B9CAD9"
+RED = "#D51E35"
+INK = "#142332"
+
+APP_STYLESHEET = f"""
+QMainWindow, QWidget#central-widget {{ background: {NAVY}; color: {TEXT}; }}
+QWidget {{ font-family: "Segoe UI", Arial, sans-serif; color: {TEXT}; }}
+QToolTip {{ background: {PANEL}; color: {TEXT}; border: 1px solid {GOLD}; padding: 5px 8px; }}
+QPushButton {{ background: #10334E; color: {TEXT}; border: 1px solid #2E5874;
+    border-radius: 10px; padding: 8px 13px; font-weight: 700; }}
+QPushButton:hover {{ background: #174767; border-color: #67B5E5; }}
+QPushButton:focus {{ border: 2px solid {GOLD}; }}
+QPushButton:disabled {{ color: #8498A8; border-color: #29465C; }}
+QComboBox {{ background: #0B2B46; color: {TEXT}; border: 1px solid #2C5875;
+    border-radius: 8px; padding: 7px 11px; min-width: 86px; }}
+QComboBox QAbstractItemView {{ background: #0B2B46; color: {TEXT}; selection-background-color: #17669A; }}
+QCheckBox {{ color: #DCEAF5; spacing: 8px; }}
+QCheckBox::indicator {{ width: 15px; height: 15px; border: 1px solid #5E819C; border-radius: 3px; background: #0B2B46; }}
+QCheckBox::indicator:checked {{ background: #7BE36A; border-color: #B5FF9E; }}
+QListWidget {{ background: #071F33; color: #EAF4FC; border: 1px solid #28516D; border-radius: 9px; padding: 6px; }}
+QListWidget::item {{ padding: 4px 5px; }}
+QDockWidget {{ color: {TEXT}; background: #081E32; }}
+QDockWidget::title {{ background: #06182A; color: {TEXT}; padding: 10px 12px; text-align: left; border-bottom: 1px solid #28516D; font-weight: 800; }}
+QTabWidget::pane {{ border: 1px solid #28516D; border-radius: 9px; background: #081F34; top: -1px; }}
+QTabBar::tab {{ background: #0A2942; color: #AFC4D7; padding: 9px 12px; border: 1px solid #244B67; }}
+QTabBar::tab:selected {{ background: #075AA0; color: white; border-color: #2D9CF1; font-weight: 800; }}
+QTabBar::tab:hover {{ background: #124366; color: white; }}
+QTableWidget {{ background: #081F34; color: #EAF4FC; gridline-color: #234761; border: 1px solid #254D69; selection-background-color: #174B70; }}
+QTableWidget::item {{ padding: 6px 7px; }}
+QHeaderView::section {{ background: #0B2B46; color: #BFD1DF; border: none; border-bottom: 1px solid #315D79; padding: 7px 5px; font-weight: 800; }}
+QTextEdit, QPlainTextEdit {{ background: #071F33; color: #EAF4FC; border: 1px solid #28516D; border-radius: 8px; padding: 6px; }}
+QScrollArea {{ background: transparent; border: none; }}
+QScrollBar:vertical {{ background: transparent; width: 9px; margin: 2px; }}
+QScrollBar::handle:vertical {{ background: #315C78; border-radius: 4px; min-height: 26px; }}
+QScrollBar::handle:vertical:hover {{ background: #4D83A6; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
+QScrollBar:horizontal {{ background: transparent; height: 9px; margin: 2px; }}
+QScrollBar::handle:horizontal {{ background: #315C78; border-radius: 4px; min-width: 26px; }}
+"""
+
+class FeltBoard(QFrame):
+    """Paints a subtle emerald felt texture behind the playing piles."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bounds = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        path = QPainterPath()
+        path.addRoundedRect(bounds, 16, 16)
+        gradient = QLinearGradient(0, 0, self.width(), self.height())
+        gradient.setColorAt(0.0, QColor("#087A45"))
+        gradient.setColorAt(0.48, QColor("#006B38"))
+        gradient.setColorAt(1.0, QColor("#004B2A"))
+        painter.fillPath(path, gradient)
+        painter.save()
+        painter.setClipPath(path)
+        for y in range(-self.width(), self.height() + self.width(), 13):
+            painter.setPen(QPen(QColor(225, 255, 235, 9), 0.7))
+            painter.drawLine(0, y, self.width(), y + self.width() // 3)
+        for y in range(16, self.height(), 46):
+            for x in range(18 + (y % 3) * 9, self.width(), 52):
+                painter.setPen(QPen(QColor(210, 255, 226, 8), 0.8))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(x, y, 2, 2)
+        painter.restore()
+        painter.setPen(QPen(QColor("#2BA56D"), 1.2))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(bounds, 16, 16)
+        painter.end()

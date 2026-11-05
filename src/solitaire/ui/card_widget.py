@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QByteArray, QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QDrag
+from PyQt6.QtGui import QDrag, QPainter, QColor, QPen
 from PyQt6.QtCore import QMimeData
 from PyQt6.QtWidgets import QApplication, QPushButton
 
@@ -21,8 +21,8 @@ class CardButton(QPushButton):
     drag_finished = pyqtSignal()
     drop_requested = pyqtSignal(str, str, str)
 
-    CARD_WIDTH = 80
-    CARD_HEIGHT = 112
+    CARD_WIDTH = 96
+    CARD_HEIGHT = 134
 
     def __init__(
         self,
@@ -80,30 +80,59 @@ class CardButton(QPushButton):
         card = self._card
         highlighted = self._selected_highlight or self._drag_highlight
         if not card.face_up:
-            border = "#F5C84C" if self._drag_highlight else "#AFC1D0"
+            border = "#FFD65A" if self._drag_highlight else "#A7D3F5"
             width = "3px" if self._drag_highlight else "2px"
             self.setText("✦\n✦")
             self.setStyleSheet(
-                "QPushButton { background: #123D5C; color: #E8F1F8; "
-                f"border: {width} solid {border}; border-radius: 8px; "
-                "font-size: 22px; font-weight: 700; }"
-                "QPushButton:disabled { background: #123D5C; color: #D8E3EC; }"
+                "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #0B68B6, stop:0.48 #064783, stop:1 #032D59); color: #F4FAFF; "
+                f"border: {width} solid {border}; border-radius: 9px; "
+                "font-size: 22px; font-weight: 800; }"
+                "QPushButton:disabled { background: #064783; color: #F4FAFF; }"
             )
             return
 
-        ink = "#C8344B" if card.color is CardColor.RED else "#172B3A"
-        border = "#F5C84C" if highlighted else "#D5DFE5"
+        ink = "#D51E35" if card.color is CardColor.RED else "#142332"
+        border = "#FFD65A" if highlighted else "#D9E1E5"
         border_width = "3px" if highlighted else "1px"
         self.setText(f"{card.rank.label}\n{card.suit.symbol}")
         self.setStyleSheet(
             "QPushButton { "
-            f"background: #FFFDF8; color: {ink}; "
+            f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #FFFFFF, stop:1 #F4F0E7); color: {ink}; "
             f"border: {border_width} solid {border}; "
-            "border-radius: 8px; font-size: 20px; font-weight: 800; "
+            "border-radius: 9px; font-family: Georgia, 'Times New Roman', serif; font-size: 23px; font-weight: 800; "
             "text-align: center; padding: 5px; }"
-            "QPushButton:hover { background: #F4F0E6; }"
+            "QPushButton:hover { background: #FFFFFF; }"
             f"QPushButton:disabled {{ background: #FFFDF8; color: {ink}; }}"
         )
+
+    def paintEvent(self, event) -> None:
+        """Add the fine ornamental frame used by the premium blue card back."""
+        super().paintEvent(event)
+        if self._card.face_up:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        outer = self.rect().adjusted(5, 5, -5, -5)
+        painter.setPen(QPen(QColor("#D8ECFF"), 1.2))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(outer, 7, 7)
+        inner = outer.adjusted(5, 5, -5, -5)
+        painter.setPen(QPen(QColor("#7CB6EA"), 0.9))
+        painter.drawRoundedRect(inner, 5, 5)
+        painter.setPen(QPen(QColor("#9BC9F0"), 0.8))
+        cx = self.width() // 2
+        cy = self.height() // 2
+        painter.drawLine(14, 16, self.width() - 14, self.height() - 16)
+        painter.drawLine(self.width() - 14, 16, 14, self.height() - 16)
+        painter.drawEllipse(cx - 18, cy - 24, 36, 48)
+        painter.drawEllipse(cx - 11, cy - 11, 22, 22)
+        for y in (18, self.height() - 30):
+            for x in (18, self.width() - 30):
+                painter.drawEllipse(x, y, 12, 12)
+        painter.setPen(QPen(QColor("#FFD65A"), 2.8) if (self._selected_highlight or self._drag_highlight) else QPen(QColor("#FFD65A"), 0))
+        if self._selected_highlight or self._drag_highlight:
+            painter.drawRoundedRect(self.rect().adjusted(2, 2, -2, -2), 9, 9)
+        painter.end()
 
     def mousePressEvent(self, event) -> None:
         if event.button() is Qt.MouseButton.LeftButton:

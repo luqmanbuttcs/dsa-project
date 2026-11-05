@@ -5,6 +5,8 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QHeaderView,
+    QFrame,
+    QHBoxLayout,
     QLabel,
     QListWidget,
     QTabWidget,
@@ -34,10 +36,10 @@ class DSAMonitorPanel(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("dsa-monitor-panel")
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(340)
         root = QVBoxLayout(self)
-        root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(8)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(9)
 
         intro = QLabel(
             "Live counts come from completed data-structure operations, "
@@ -47,9 +49,16 @@ class DSAMonitorPanel(QWidget):
         intro.setStyleSheet("color: #B9C7D3; font-size: 11px;")
         root.addWidget(intro)
 
+        self.main_tabs = QTabWidget()
+        self.main_tabs.setObjectName("dsa-dashboard-tabs")
+        root.addWidget(self.main_tabs, 1)
+
+        dsa_page = QWidget()
+        dsa_layout = QVBoxLayout(dsa_page)
+        dsa_layout.setContentsMargins(2, 4, 2, 2)
         self.tabs = QTabWidget()
         self.tabs.setObjectName("dsa-monitor-tabs")
-        root.addWidget(self.tabs, 1)
+        dsa_layout.addWidget(self.tabs, 1)
 
         overview = QWidget()
         overview_layout = QVBoxLayout(overview)
@@ -60,13 +69,17 @@ class DSAMonitorPanel(QWidget):
             ["Structure", "Current", "Operations"]
         )
         self.count_table.verticalHeader().setVisible(False)
+        self.count_table.setWordWrap(True)
+        self.count_table.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
         self.count_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.count_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self.count_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch
+            0, QHeaderView.ResizeMode.ResizeToContents
         )
         self.count_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.ResizeToContents
+            1, QHeaderView.ResizeMode.Stretch
         )
         self.count_table.horizontalHeader().setSectionResizeMode(
             2, QHeaderView.ResizeMode.ResizeToContents
@@ -120,6 +133,42 @@ class DSAMonitorPanel(QWidget):
         self.operation_history.setAlternatingRowColors(True)
         history_layout.addWidget(self.operation_history, 1)
         self.tabs.addTab(history, "History")
+        self.main_tabs.addTab(dsa_page, "▥  DSA Monitor")
+
+        stats_page = QWidget()
+        stats_layout = QVBoxLayout(stats_page)
+        stats_layout.setContentsMargins(10, 12, 10, 10)
+        stats_layout.setSpacing(9)
+        self.game_stats_labels: dict[str, QLabel] = {}
+        stat_rows = (
+            ("MOVES", "moves"),
+            ("SCORE", "score"),
+            ("ELAPSED TIME", "time"),
+            ("DRAW MODE", "draw_mode"),
+            ("STOCK REMAINING", "stock"),
+            ("WASTE CARDS", "waste"),
+            ("FOUNDATION PROGRESS", "foundations"),
+            ("TABLEAU CARDS", "tableau"),
+        )
+        for caption, key in stat_rows:
+            card = QFrame()
+            card.setObjectName("game-stat-card")
+            card.setStyleSheet(
+                "QFrame#game-stat-card { background: #0C2A43; border: 1px solid #28516D; border-radius: 10px; }"
+            )
+            row = QHBoxLayout(card)
+            row.setContentsMargins(12, 8, 12, 8)
+            label = QLabel(caption)
+            label.setStyleSheet("color: #AFC5D8; font-size: 10px; font-weight: 800; letter-spacing: 1px;")
+            value = QLabel("—")
+            value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            value.setStyleSheet("color: #F5FAFF; font-size: 15px; font-weight: 800;")
+            row.addWidget(label, 1)
+            row.addWidget(value)
+            stats_layout.addWidget(card)
+            self.game_stats_labels[key] = value
+        stats_layout.addStretch(1)
+        self.main_tabs.addTab(stats_page, "🏆  Game Stats")
 
         self._last_event_sequence = 0
 
@@ -328,3 +377,19 @@ class DSAMonitorPanel(QWidget):
         if events:
             self.operation_history.scrollToBottom()
         self._last_event_sequence = events[-1].sequence if events else 0
+
+        foundation_cards_now = sum(pile.size() for pile in state.foundations.values())
+        tableau_cards_now = sum(column.size() for column in state.tableau.values())
+        elapsed = max(0, int(state.elapsed_seconds))
+        stat_values = {
+            "moves": str(state.move_count),
+            "score": str(state.score),
+            "time": f"{elapsed // 60:02d}:{elapsed % 60:02d}",
+            "draw_mode": f"Draw {state.draw_count}",
+            "stock": f"{state.stock.size()} cards",
+            "waste": f"{state.waste.size()} cards",
+            "foundations": f"{foundation_cards_now} / 52 cards",
+            "tableau": f"{tableau_cards_now} cards across 7 columns",
+        }
+        for key, value in stat_values.items():
+            self.game_stats_labels[key].setText(value)

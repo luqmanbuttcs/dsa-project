@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPainter, QPen
+from PyQt6.QtGui import QPainter, QPen, QColor, QFont
 from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QWidget
 
 from solitaire.domain.card import Card, Suit
@@ -24,27 +24,52 @@ class StockButton(QPushButton):
         self.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._stock_count = 24
+        self._can_recycle = False
         self.setStyleSheet(
-            "QPushButton { background: #123D5C; color: #F4F7FA; "
-            "border: 2px solid #B9C7D3; border-radius: 8px; "
-            "font-size: 16px; font-weight: 700; }"
-            "QPushButton:hover { border: 2px solid #F5C84C; }"
-            "QPushButton:disabled { color: #A9B9C5; border-color: #6B7D88; }"
+            "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #0B68B6, stop:0.5 #064783, stop:1 #032D59); color: #F4F9FF; "
+            "border: 2px solid #B7D8F4; border-radius: 9px; "
+            "font-size: 16px; font-weight: 800; }"
+            "QPushButton:hover { border: 2px solid #FFD65A; }"
+            "QPushButton:disabled { color: #A9C1D5; border-color: #6687A5; }"
         )
 
     def set_stock(self, count: int, can_recycle: bool) -> None:
+        self._stock_count = count
+        self._can_recycle = can_recycle
+        self.setText("")
         if count:
-            self.setText(f"✦\n\n{count}")
             self.setAccessibleName(f"Stock pile, {count} cards. Click to draw.")
             self.setEnabled(True)
         elif can_recycle:
-            self.setText("↻\n\nRecycle")
             self.setAccessibleName("Recycle waste into stock and draw.")
             self.setEnabled(True)
         else:
-            self.setText("Empty")
             self.setAccessibleName("Stock and waste are empty.")
             self.setEnabled(False)
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        frame = self.rect().adjusted(5, 5, -5, -5)
+        painter.setPen(QPen(QColor("#D8ECFF"), 1.2))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(frame, 7, 7)
+        painter.setPen(QPen(QColor("#8CC3EF"), 0.8))
+        painter.drawRoundedRect(frame.adjusted(5, 5, -5, -5), 5, 5)
+        painter.setPen(QPen(QColor("#B4D9F7"), 0.9))
+        w, h = self.width(), self.height()
+        painter.drawLine(14, 16, w - 14, h - 16)
+        painter.drawLine(w - 14, 16, 14, h - 16)
+        painter.setFont(QFont("Georgia", 30, QFont.Weight.Bold))
+        painter.setPen(QColor("#FFFFFF"))
+        center_symbol = "♠" if self._stock_count else ("↻" if self._can_recycle else "")
+        painter.drawText(self.rect().adjusted(0, 13, 0, -23), Qt.AlignmentFlag.AlignCenter, center_symbol)
+        painter.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        count_label = str(self._stock_count) if self._stock_count else ("Recycle" if self._can_recycle else "Empty")
+        painter.drawText(self.rect().adjusted(0, self.height() - 34, 0, -5), Qt.AlignmentFlag.AlignCenter, count_label)
+        painter.end()
 
 
 class WasteWidget(QWidget):
@@ -117,13 +142,13 @@ class FoundationSlot(QWidget):
         if card is None:
             button = QPushButton(self.suit.symbol)
             button.setObjectName(f"empty-foundation-{self.suit.code.lower()}")
-            ink = "#C8344B" if self.suit in (Suit.HEARTS, Suit.DIAMONDS) else "#E6EEF4"
+            ink = "#FF6677" if self.suit in (Suit.HEARTS, Suit.DIAMONDS) else "#A5E8C0"
             button.setStyleSheet(
                 "QPushButton { "
-                f"background: rgba(3, 38, 25, 0.18); color: {ink}; "
-                "border: 2px dashed rgba(230, 241, 235, 0.55); "
-                "border-radius: 8px; font-size: 32px; font-weight: 700; }"
-                "QPushButton:hover { border: 2px solid #F5C84C; }"
+                f"background: rgba(0, 43, 25, 0.38); color: {ink}; "
+                "border: 2px solid rgba(109, 255, 107, 0.82); "
+                "border-radius: 10px; font-size: 38px; font-weight: 800; }"
+                "QPushButton:hover { border: 3px solid #FFD65A; background: rgba(13, 93, 48, 0.62); }"
             )
             button.setAccessibleName(f"Empty {self.suit.value} foundation. Click to place a card.")
         else:
@@ -148,7 +173,7 @@ class FoundationSlot(QWidget):
         if self._button is None:
             return
         highlight_style = (
-            " QPushButton { border: 3px solid #F5C84C; }"
+            " QPushButton { border: 3px solid #FFD65A; }"
             if self._drag_highlighted else ""
         )
         self._button.setStyleSheet(self._base_button_style + highlight_style)
@@ -187,8 +212,8 @@ class TableauColumnWidget(QWidget):
     card_drag_started = pyqtSignal(str, str)
     card_drag_finished = pyqtSignal()
 
-    FACE_DOWN_OFFSET = 22
-    FACE_UP_OFFSET = 28
+    FACE_DOWN_OFFSET = 25
+    FACE_UP_OFFSET = 35
 
     def __init__(self, column_id: str, parent=None) -> None:
         super().__init__(parent)
@@ -223,7 +248,9 @@ class TableauColumnWidget(QWidget):
             None,
         )
         y_position = 0
+        last_top = 0
         for index, card in enumerate(cards):
+            last_top = y_position
             in_selected_run = selected_index is not None and index >= selected_index
             button = CardButton(
                 card,
@@ -247,7 +274,7 @@ class TableauColumnWidget(QWidget):
                 self.FACE_UP_OFFSET if card.face_up else self.FACE_DOWN_OFFSET
             )
 
-        total_height = max(CARD_HEIGHT, y_position - self.FACE_UP_OFFSET)
+        total_height = max(CARD_HEIGHT, last_top + CARD_HEIGHT)
         self.setFixedHeight(total_height)
         self.update()
 
@@ -296,7 +323,7 @@ class TableauColumnWidget(QWidget):
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(Qt.GlobalColor.white)
+        pen = QPen(QColor("#8AF28B"))
         pen.setStyle(Qt.PenStyle.DashLine)
         pen.setWidth(2)
         painter.setPen(pen)
