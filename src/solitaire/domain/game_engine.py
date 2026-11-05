@@ -15,7 +15,6 @@ from solitaire.domain.game_state import (
 )
 from solitaire.domain.operations import OperationTracker, StructureName
 from solitaire.domain.rules import MoveError, RuleValidator, ValidationResult
-from solitaire.structures.linked_list import LinkedListNode
 
 
 class InvalidMoveError(ValueError):
@@ -147,12 +146,7 @@ class GameEngine:
             raise InvalidMoveError(result)
 
         action_id = self._begin_action()
-        linked = source.stack.linked_list
-        first_node: LinkedListNode[Card] = linked.node_at(selected_index)
-        last_node = linked.tail
-        assert last_node is not None
-
-        detached = source.stack.detach_run(first_node, last_node)
+        detached = source.detach_run_from(selected_index)
         self._record(
             StructureName.STACK,
             "DETACH_RUN",
@@ -169,7 +163,7 @@ class GameEngine:
             details={"node_links": "source boundaries relinked"},
         )
 
-        destination.stack.attach_run(detached)
+        destination.attach_run(detached)
         self._record(
             StructureName.STACK,
             "ATTACH_RUN",
