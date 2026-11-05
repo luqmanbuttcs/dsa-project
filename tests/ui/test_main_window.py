@@ -296,6 +296,11 @@ def test_score_label_and_timer_track_actions_and_survive_undo(app, monkeypatch):
     assert engine.state.elapsed_seconds == 8
     assert window.timer_label.text() == "TIME  00:08"
 
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
+    )
     window.new_game_button.click()
     assert window.engine.state.score == 0
     assert window.engine.state.elapsed_seconds == 0
