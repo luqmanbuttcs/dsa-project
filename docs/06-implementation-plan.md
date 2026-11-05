@@ -315,3 +315,19 @@ Latest confirmed CI result: **69 passed**.
 **Verification:** GitHub Actions completed with **69 passing tests**. New coverage includes tableau move/flip round trips, Draw 3 order and face state, stock recycle round trips, foundation movement, redo invalidation, empty-history behavior, multi-action undo/redo, and multi-card sequence restoration.
 
 **Still pending:** PyQt6 desktop interface, card interaction/animations, visible DSA monitor, final UI smoke tests, and optional enhancements.
+
+
+## 10. Phase 4 — Basic User Interface implementation status
+
+**Completed on `feat/core-data-structures`:**
+- Added the application entry point: `python -m solitaire.main`.
+- Added a PyQt6 `QMainWindow` with the approved navy/green-felt visual direction and deliberate outer spacing.
+- Rendered the stock pile, up to three visible waste cards, four suit foundations, and seven tableau columns.
+- Added click-to-select and click-to-move for face-up tableau sequences and the top waste card.
+- Added stock Draw 1 / Draw 3 selection, New Game, Undo, Redo, move count, inline status feedback, and a separate player Move Log.
+- Kept all state mutation inside `GameEngine`; widgets render the domain state and request engine actions.
+- Added offscreen Qt smoke tests and installed the Qt system runtime libraries in GitHub Actions.
+
+**Not included in this basic UI milestone:** drag-and-drop, card movement/flip animations, and the expanded live DSA Monitor. Those remain later UI/monitor milestones.
+
+**Entry point:** `python -m solitaire.main`
