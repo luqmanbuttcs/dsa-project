@@ -68,7 +68,7 @@ def build_waste_ace_state() -> GameState:
 
 def build_tableau_move_state() -> GameState:
     cards = {card.card_id: card for card in DeckFactory.create_standard_deck()}
-    hidden = cards.pop("D-7")
+    hidden = cards.pop("C-7")
     moving = cards.pop("H-8")
     destination_top = cards.pop("C-9")
     hidden.turn_face_down()
@@ -177,7 +177,6 @@ def test_waste_selection_and_foundation_target_perform_real_game_move(app):
     assert window.selected_card_id == "H-A"
 
     hearts_foundation = window.foundation_widgets[Suit.HEARTS]
-    hearts_foundation.findChild(object) if False else None
     hearts_foundation._button.click()
 
     assert engine.state.waste.is_empty()
@@ -209,7 +208,7 @@ def test_tableau_card_clicks_select_and_move_face_up_card(app):
 
     source = engine.state.tableau["tableau-1"]
     destination = engine.state.tableau["tableau-2"]
-    assert source.peek().card_id == "D-7"
+    assert source.peek().card_id == "C-7"
     assert source.peek().face_up
     assert destination.peek().card_id == "H-8"
     assert engine.state.card_index["H-8"].pile_id == "tableau-2"
