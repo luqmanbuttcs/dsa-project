@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from solitaire.domain.card import Card, Rank, Suit
 from solitaire.domain.deck import DeckFactory
 from solitaire.domain.game_engine import GameEngine
+from solitaire.domain.operations import StructureName
 from solitaire.domain.game_state import (
     CardLocation,
     GameState,
@@ -373,6 +374,8 @@ def test_drag_preview_highlights_only_currently_legal_destinations(app):
 def test_dsa_monitor_shows_real_operations_and_current_structure_state(app):
     engine = GameEngine(create_new_game(Random(4501)))
     window = MainWindow(engine)
+    window.show()
+    app.processEvents()
 
     assert window.dsa_monitor_dock.isVisible()
     assert window.dsa_monitor.count_table.rowCount() == 5
@@ -383,9 +386,13 @@ def test_dsa_monitor_shows_real_operations_and_current_structure_state(app):
     assert "Queue" in window.dsa_monitor.latest_operation.text()
     assert "DEQUEUE" in window.dsa_monitor.latest_operation.text()
     assert window.dsa_monitor.operation_history.count() > 0
+    assert any(
+        "Queue · DEQUEUE" in window.dsa_monitor.operation_history.item(index).text()
+        for index in range(window.dsa_monitor.operation_history.count())
+    )
 
     queue_details = window.dsa_monitor.detail_views[
-        __import__("solitaire.domain.operations", fromlist=["StructureName"]).StructureName.QUEUE
+        StructureName.QUEUE
     ].toPlainText()
     assert "Front / next to draw" in queue_details
     assert "Stock Queue" in queue_details
