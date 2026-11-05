@@ -305,3 +305,58 @@ def test_initialized_engine_obeys_game_status_after_win():
     with pytest.raises(RuntimeError, match="not currently playable"):
         engine.draw_from_stock()
     state.assert_invariants()
+
+
+
+@pytest.mark.parametrize("seed", [5101, 5102, 5103, 5104, 5105])
+def test_random_legal_hint_sequences_preserve_all_cards_and_dictionary(seed):
+    """Exercise many valid actions without ever losing or duplicating a card."""
+    rng = Random(seed)
+    state = create_new_game(rng)
+    engine = GameEngine(state)
+    engine.set_draw_count(rng.choice((1, 3)))
+
+    successful_actions = 0
+    for _ in range(80):
+        hints = engine.find_hints()
+        if not hints:
+            break
+
+        hint = rng.choice(hints)
+        if hint.action_type == "DRAW_STOCK":
+            engine.draw_from_stock()
+        elif hint.action_type == "WASTE_TO_TABLEAU":
+            engine.move_waste_to_tableau(hint.destination_pile)
+        elif hint.action_type == "WASTE_TO_FOUNDATION":
+            suit = next(
+                suit for suit in Suit
+                if hint.destination_pile == f"foundation-{suit.code.lower()}"
+            )
+            engine.move_waste_to_foundation(suit)
+        elif hint.action_type == "TABLEAU_TO_FOUNDATION":
+            suit = next(
+                suit for suit in Suit
+                if hint.destination_pile == f"foundation-{suit.code.lower()}"
+            )
+            engine.move_tableau_to_foundation(hint.source_pile, suit)
+        elif hint.action_type == "TABLEAU_TO_TABLEAU":
+            engine.move_tableau_to_tableau(
+                hint.source_pile,
+                hint.card_ids[0],
+                hint.destination_pile,
+            )
+        else:
+            pytest.fail(f"Unknown hint action type: {hint.action_type}")
+
+        successful_actions += 1
+        state.assert_invariants()
+        cards = state.cards_in_play()
+        assert len(cards) == 52
+        assert len({card.card_id for card in cards}) == 52
+        assert set(state.card_index) == {card.card_id for card in cards}
+
+        if state.status is GameStatus.WON:
+            break
+
+    assert successful_actions > 0
+    state.assert_invariants()
