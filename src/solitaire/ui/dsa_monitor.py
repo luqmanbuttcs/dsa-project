@@ -132,7 +132,8 @@ class DSAMonitorPanel(QWidget):
         cards = ", ".join(event.card_ids) if event.card_ids else "no card ID"
         pile = event.pile_id or "game"
         return (
-            f"#{event.sequence:04d}  {event.structure.value} · {event.operation} "
+            f"#{event.sequence:04d}  {event.timestamp[11:19]} UTC  "
+            f"{event.structure.value} · {event.operation} "
             f"| {event.context} | {pile} | {cards} | {event.outcome}"
         )
 
@@ -203,7 +204,7 @@ class DSAMonitorPanel(QWidget):
                 "LATEST OPERATION GROUP\n"
                 f"Action: {latest.action_id}   Context: {latest.context}\n"
                 f"{len(action_events)} recorded steps; final step: "
-                f"{latest.structure.value} / {latest.operation}\\n"
+                f"{latest.structure.value} / {latest.operation}\n"
                 f"Pile: {latest.pile_id or 'game'}   Cards: "
                 f"{', '.join(latest.card_ids) if latest.card_ids else '—'}\n"
                 f"Sequence: {step_summary}"
