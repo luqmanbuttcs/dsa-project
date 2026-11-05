@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QPainter, QPen, QColor, QFont
-from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QHBoxLayout, QPushButton, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QWidget
 
 from solitaire.domain.card import Card, Suit
 from solitaire.domain.game_state import TableauColumn
@@ -157,12 +157,6 @@ class FoundationSlot(QWidget):
         button.clicked.connect(lambda: self.selected.emit(self.suit))
         self._button = button
         self._base_button_style = button.styleSheet()
-        if card is None:
-            glow = QGraphicsDropShadowEffect(button)
-            glow.setBlurRadius(18)
-            glow.setColor(QColor("#58FF65"))
-            glow.setOffset(0, 0)
-            button.setGraphicsEffect(glow)
         self._apply_drop_style()
         button.setParent(self)
         button.setGeometry(0, 0, CARD_WIDTH, CARD_HEIGHT)
