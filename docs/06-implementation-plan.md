@@ -312,6 +312,6 @@ Latest confirmed CI result: **69 passed**.
 - The operation log remains append-only. Undo and redo emit their own action contexts; internal history-stack maintenance is recorded separately so it does not pollute a player's move-level trace.
 - Undo does not rewind elapsed real time or override the current Draw 1 / Draw 3 preference; those are not card-move state.
 
-**Verification:** GitHub Actions completed with **64 passing tests**. New coverage includes tableau move/flip round trips, Draw 3 order and face state, stock recycle round trips, foundation movement, redo invalidation, empty-history behavior, multi-action undo/redo, and multi-card sequence restoration.
+**Verification:** GitHub Actions completed with **69 passing tests**. New coverage includes tableau move/flip round trips, Draw 3 order and face state, stock recycle round trips, foundation movement, redo invalidation, empty-history behavior, multi-action undo/redo, and multi-card sequence restoration.
 
 **Still pending:** PyQt6 desktop interface, card interaction/animations, visible DSA monitor, final UI smoke tests, and optional enhancements.
