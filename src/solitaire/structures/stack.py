@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Generic, TypeVar
 
-from solitaire.structures.linked_list import LinkedList
+from solitaire.structures.linked_list import LinkedList, LinkedListNode
 
 T = TypeVar("T")
 
@@ -38,6 +38,27 @@ class Stack(Generic[T]):
     def to_list(self) -> list[T]:
         """Return items from bottom to top without changing the stack."""
         return self._items.to_list()
+
+    @property
+    def linked_list(self) -> LinkedList[T]:
+        """Expose the backing list for tableau-specific run operations.
+
+        Normal callers should use the Stack API. TableauColumn may use this
+        view to detach/attach a contiguous face-up run without copying cards.
+        """
+        return self._items
+
+    def detach_run(
+        self,
+        first: LinkedListNode[T],
+        last: LinkedListNode[T],
+    ) -> LinkedList[T]:
+        """Detach a contiguous run from the backing linked list."""
+        return self._items.detach_range(first, last)
+
+    def attach_run(self, run: LinkedList[T]) -> None:
+        """Attach a detached run to the top while preserving node identity."""
+        self._items.append_list(run)
 
     def clear(self) -> None:
         self._items.clear()
