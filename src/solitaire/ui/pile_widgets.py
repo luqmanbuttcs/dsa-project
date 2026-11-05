@@ -28,45 +28,28 @@ class StockButton(QPushButton):
         self._stock_count = 24
         self._can_recycle = False
         self.setStyleSheet(
-            "QPushButton { background: transparent; color: transparent; border: none; padding: 0; }"
-            "QPushButton:hover { background: transparent; }"
+            "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #1679C5, stop:0.48 #07539A, stop:1 #032C59); "
+            "color: #FFFFFF; border: 2px solid #D8ECFF; border-radius: 9px; "
+            "font-size: 29px; font-weight: 800; padding: 5px; }"
+            "QPushButton:hover { border: 2px solid #FFD65A; }"
+            "QPushButton:disabled { color: #A9C1D5; border-color: #6687A5; }"
         )
 
     def set_stock(self, count: int, can_recycle: bool) -> None:
         self._stock_count = count
         self._can_recycle = can_recycle
-        self.setText("")
         if count:
+            self.setText(f"♠\n\n{count}")
             self.setAccessibleName(f"Stock pile, {count} cards. Click to draw.")
             self.setEnabled(True)
         elif can_recycle:
+            self.setText("↻\n\nRecycle")
             self.setAccessibleName("Recycle waste into stock and draw.")
             self.setEnabled(True)
         else:
+            self.setText("Empty")
             self.setAccessibleName("Stock and waste are empty.")
             self.setEnabled(False)
-
-    def paintEvent(self, event) -> None:
-        super().paintEvent(event)
-        painter = QPainter(self)
-        paint_card_back(
-            painter,
-            QRectF(0, 0, CARD_WIDTH, CARD_HEIGHT),
-            selected=False,
-            radius=9.0,
-        )
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pill = QRectF(5, CARD_HEIGHT + 4, CARD_WIDTH - 10, 20)
-        painter.setPen(QPen(QColor("#123A31"), 1.0))
-        painter.setBrush(QColor("#052E25"))
-        painter.drawRoundedRect(pill, 9, 9)
-        painter.setPen(QColor("#F1FFF4"))
-        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        label = str(self._stock_count) + " cards" if self._stock_count else (
-            "Recycle" if self._can_recycle else "Empty"
-        )
-        painter.drawText(pill, Qt.AlignmentFlag.AlignCenter, label)
-        painter.end()
 
 
 class WasteWidget(QWidget):
