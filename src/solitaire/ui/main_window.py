@@ -5,14 +5,25 @@ from __future__ import annotations
 from random import Random
 from time import monotonic
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import (
+    QEasingCurve,
+    QPoint,
+    QPropertyAnimation,
+    QRect,
+    Qt,
+    QTimer,
+)
+from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
+    QDockWidget,
     QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -28,6 +39,8 @@ from solitaire.domain.game_engine import (
 )
 from solitaire.domain.game_state import GameStatus, Zone, create_new_game
 from solitaire.domain.operations import OperationTracker
+from solitaire.ui.card_widget import CardButton
+from solitaire.ui.dsa_monitor import DSAMonitorPanel
 from solitaire.ui.pile_widgets import (
     CARD_HEIGHT,
     CARD_WIDTH,
@@ -61,12 +74,35 @@ class MainWindow(QMainWindow):
             else None
         )
         self._hint_index = 0
+        self._active_animations: list[QPropertyAnimation] = []
+        self._drag_destinations: set[str] = set()
 
         self.setObjectName("klondike-main-window")
         self.setWindowTitle("Klondike Solitaire — CSC200 DSA Edition")
-        self.setMinimumSize(1160, 780)
-        self.resize(1440, 940)
+        self.setMinimumSize(1420, 800)
+        self.resize(1640, 940)
         self._build_ui()
+        self.dsa_monitor = DSAMonitorPanel(self)
+        self.dsa_monitor_dock = QDockWidget("DSA Monitor", self)
+        self.dsa_monitor_dock.setObjectName("dsa-monitor-dock")
+        self.dsa_monitor_dock.setAllowedAreas(
+            Qt.DockWidgetArea.RightDockWidgetArea
+            | Qt.DockWidgetArea.BottomDockWidgetArea
+        )
+        self.dsa_monitor_dock.setMinimumWidth(300)
+        self.dsa_monitor_dock.setWidget(self.dsa_monitor)
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.dsa_monitor_dock
+        )
+        self.dsa_monitor_button.toggled.connect(self.dsa_monitor_dock.setVisible)
+        self.dsa_monitor_dock.visibilityChanged.connect(
+            self.dsa_monitor_button.setChecked
+        )
+        self.dsa_monitor_button.setChecked(True)
+        self.resizeDocks(
+            [self.dsa_monitor_dock], [350], Qt.Orientation.Horizontal
+        )
+        self._install_shortcuts()
         self._clock_timer = QTimer(self)
         self._clock_timer.setInterval(1000)
         self._clock_timer.timeout.connect(self._update_clock_display)
@@ -152,6 +188,12 @@ class MainWindow(QMainWindow):
         self.hint_button.clicked.connect(self._show_hint)
         header.addWidget(self.hint_button)
 
+        self.dsa_monitor_button = QPushButton("DSA Monitor")
+        self.dsa_monitor_button.setObjectName("dsa-monitor-toggle")
+        self.dsa_monitor_button.setCheckable(True)
+        self.dsa_monitor_button.setChecked(True)
+        header.addWidget(self.dsa_monitor_button)
+
         self.new_game_button = QPushButton("New Game")
         self.new_game_button.setObjectName("new-game-button")
         self.new_game_button.setStyleSheet(
@@ -191,6 +233,8 @@ class MainWindow(QMainWindow):
 
         self.waste_widget = WasteWidget()
         self.waste_widget.card_selected.connect(self._card_selected)
+        self.waste_widget.card_drag_started.connect(self._start_drag_preview)
+        self.waste_widget.card_drag_finished.connect(self._clear_drag_preview)
         waste_group = self._pile_group("WASTE", self.waste_widget)
         top_row.addWidget(waste_group)
         top_row.addStretch(1)
@@ -198,6 +242,7 @@ class MainWindow(QMainWindow):
         for suit in Suit:
             slot = FoundationSlot(suit)
             slot.selected.connect(self._foundation_selected)
+            slot.card_dropped.connect(self._handle_drop)
             self._foundation_widgets[suit] = slot
             top_row.addWidget(self._pile_group(suit.value.upper(), slot))
 
@@ -228,6 +273,9 @@ class MainWindow(QMainWindow):
             widget = TableauColumnWidget(column_id)
             widget.card_selected.connect(self._card_selected)
             widget.empty_selected.connect(self._empty_tableau_selected)
+            widget.card_dropped.connect(self._handle_drop)
+            widget.card_drag_started.connect(self._start_drag_preview)
+            widget.card_drag_finished.connect(self._clear_drag_preview)
             self._tableau_widgets[column_id] = widget
             tableau_layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignTop)
 
@@ -253,6 +301,12 @@ class MainWindow(QMainWindow):
         draw_group.addWidget(draw_label)
         draw_group.addWidget(self.draw_mode_combo)
         footer.addLayout(draw_group)
+        self.reduce_motion_check = QCheckBox("Reduce motion")
+        self.reduce_motion_check.setObjectName("reduce-motion-check")
+        self.reduce_motion_check.setToolTip(
+            "Disable travel/flip animations while keeping move feedback and DSA events."
+        )
+        footer.addWidget(self.reduce_motion_check)
 
         self.status_label = QLabel("Select a face-up card, then select a destination.")
         self.status_label.setObjectName("game-status")
