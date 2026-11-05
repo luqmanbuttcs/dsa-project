@@ -242,3 +242,52 @@ def test_new_game_reinitializes_all_piles_and_history(app):
     assert not window.engine.can_undo
     assert window.moves_label.text() == "MOVES  0"
     window.close()
+
+
+
+def test_hint_button_selects_the_source_for_a_legal_move(app):
+    engine = GameEngine(build_tableau_move_state())
+    window = MainWindow(engine)
+
+    window.hint_button.click()
+
+    assert window.selected_card_id == "H-8"
+    assert window._selected_pile_id == "tableau-1"
+    assert "Hint 1/1" in window.status_label.text()
+    assert "Tableau 2" in window.status_label.text()
+    window.close()
+
+
+def test_score_label_and_timer_track_actions_and_survive_undo(app, monkeypatch):
+    import solitaire.ui.main_window as main_window_module
+
+    clock = [100.0]
+    monkeypatch.setattr(main_window_module, "monotonic", lambda: clock[0])
+    engine = GameEngine(build_waste_ace_state())
+    window = MainWindow(engine)
+
+    assert window.timer_label.text() == "TIME  00:00"
+    assert window.score_label.text() == "SCORE  0"
+
+    window.waste_widget.card_buttons[-1].click()
+    window.foundation_widgets[Suit.HEARTS]._button.click()
+    assert engine.state.score == 10
+    assert window.score_label.text() == "SCORE  10"
+
+    clock[0] = 105.0
+    window._update_clock_display()
+    assert engine.state.elapsed_seconds == 5
+    assert window.timer_label.text() == "TIME  00:05"
+
+    window.undo_button.click()
+    clock[0] = 108.0
+    window._update_clock_display()
+    assert engine.state.score == 0
+    assert engine.state.elapsed_seconds == 8
+    assert window.timer_label.text() == "TIME  00:08"
+
+    window.new_game_button.click()
+    assert window.engine.state.score == 0
+    assert window.engine.state.elapsed_seconds == 0
+    assert window.timer_label.text() == "TIME  00:00"
+    window.close()
