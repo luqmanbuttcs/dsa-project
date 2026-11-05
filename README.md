@@ -33,20 +33,23 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Win detection only when all four foundations contain complete, correctly ordered Ace-to-King suit sequences (52 cards total).
 - [x] Undo and redo using two custom Stack history piles and complete logical game snapshots.
 - [x] Structured DSA operation tracker for setup and game actions.
-- [x] Unit tests and GitHub Actions CI (85 tests passing on the current branch).
+- [x] Legal move hints generated from the current face-up game state.
+- [x] Timer that starts on the first successful action, pauses at victory, and survives undo/redo without rewinding.
+- [x] Performance scoring: +10 for a foundation move, +5 for waste-to-tableau, and +5 for exposing a face-down tableau card.
+- [x] Unit tests and GitHub Actions CI (92 tests targeted on the current branch; final CI verification pending).
 
 ### Phase 4 — Basic PyQt6 User Interface: implemented
 - [x] PyQt6 `QMainWindow` with a green-felt board and navy application shell.
 - [x] Stock pile, visible waste cards, four suit foundations, and seven tableau columns.
 - [x] Click-to-select and click-to-move interactions for tableau and waste cards.
-- [x] Draw 1 / Draw 3 selector, New Game, Undo, and Redo controls.
-- [x] Move count, non-blocking status feedback, and a separate player Move Log.
+- [x] Draw 1 / Draw 3 selector, New Game, Undo, Redo, and Hint controls.
+- [x] Move count, score, elapsed-time display, non-blocking status feedback, and a separate player Move Log.
 - [x] Offscreen UI smoke tests for board rendering and real game-engine interactions.
 
 ### Still to implement
 - [ ] Drag-and-drop interaction and card movement/flip animations.
 - [ ] Live five-structure DSA Monitor and low-level operation history view.
-- [ ] Hint, timer/score polish, settings, and final UI validation.
+- [ ] Settings, final visual/manual playtest, and demonstration preparation.
 
 The current branch includes a runnable PyQt6 board. Animation and the expanded DSA Monitor remain later milestones.
 
@@ -114,4 +117,4 @@ The automated suite now covers the assignment's validation checklist:
 - **Win condition:** four complete, ordered suit foundations are required. A deterministic four-King endgame test verifies the final legal moves, win status, and undo/redo of the victory transition.
 - **Game flow:** fresh-game initialization is checked for 52 unique cards, 28 tableau cards, 24 stock cards, seven columns, and the required face-up/down arrangement. The endgame test then exercises legal completion through the engine.
 
-GitHub Actions currently reports **85 passing tests**, including domain, integration, and PyQt6 UI tests.
+GitHub Actions previously reported **85 passing tests** before the bonus-feature test additions. The current bonus-feature branch targets **92 tests**; see the latest CI run for the verified result.
