@@ -50,6 +50,8 @@ class StockButton(QPushButton):
 class WasteWidget(QWidget):
     """Shows up to the three newest waste cards; only the top card is active."""
 
+    card_selected = pyqtSignal(str, str)
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("waste-widget")
@@ -60,9 +62,11 @@ class WasteWidget(QWidget):
         self._buttons: list[CardButton] = []
 
     def set_cards(self, cards: list[Card]) -> None:
-        for button in self._buttons:
-            self._layout.removeWidget(button)
-            button.deleteLater()
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
         self._buttons.clear()
 
         visible_cards = cards[-3:]
@@ -73,10 +77,11 @@ class WasteWidget(QWidget):
                 f"{card.rank.label} of {card.suit.value}"
                 + (", top waste card" if is_top else ", covered waste card")
             )
+            if is_top:
+                button.activated.connect(self.card_selected.emit)
             self._layout.addWidget(button)
             self._buttons.append(button)
 
-        self._layout.addStretch(1)
 
     @property
     def card_buttons(self) -> tuple[CardButton, ...]:
