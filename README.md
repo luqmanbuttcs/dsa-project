@@ -33,7 +33,7 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Win detection only when all four foundations contain complete, correctly ordered Ace-to-King suit sequences (52 cards total).
 - [x] Undo and redo using two custom Stack history piles and complete logical game snapshots.
 - [x] Structured DSA operation tracker for setup and game actions.
-- [x] Unit tests and GitHub Actions CI (75 tests passing on the current branch).
+- [x] Unit tests and GitHub Actions CI (85 tests passing on the current branch).
 
 ### Phase 4 — Basic PyQt6 User Interface: implemented
 - [x] PyQt6 `QMainWindow` with a green-felt board and navy application shell.
@@ -102,3 +102,16 @@ Verification at Phase 3 completion: **69 passing tests**. The current Phase 4 br
 ## Phase 4 — User Interface
 
 The basic desktop board is implemented in `src/solitaire/ui/` and starts with `python -m solitaire.main`. It displays the stock, waste, four foundations, and seven tableau columns. Use click-to-select followed by a click on a legal destination; the interface delegates every move to `GameEngine`. Drag-and-drop, animation, and the expanded DSA Monitor are not part of this initial UI milestone. GitHub Actions verifies the board with **75 passing tests**, including the six offscreen UI smoke tests.
+
+
+## Validation and Testing
+
+The automated suite now covers the assignment's validation checklist:
+
+- **Legal moves:** alternating colors, sequential tableau ranks, valid face-up runs, King-only empty-column moves, and same-suit ascending foundations.
+- **Rejected moves:** same-color destinations, wrong ranks, malformed runs, and face-down selections are rejected without changing pile order, the Dictionary, or the move count.
+- **Card flipping:** moving a card from a tableau exposes and flips the newly uncovered card; its Dictionary entry and operation event are checked.
+- **Win condition:** four complete, ordered suit foundations are required. A deterministic four-King endgame test verifies the final legal moves, win status, and undo/redo of the victory transition.
+- **Game flow:** fresh-game initialization is checked for 52 unique cards, 28 tableau cards, 24 stock cards, seven columns, and the required face-up/down arrangement. The endgame test then exercises legal completion through the engine.
+
+GitHub Actions currently reports **85 passing tests**, including domain, integration, and PyQt6 UI tests.
