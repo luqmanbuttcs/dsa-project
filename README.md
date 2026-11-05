@@ -33,7 +33,7 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Win detection only when all four foundations contain complete, correctly ordered Ace-to-King suit sequences (52 cards total).
 - [x] Undo and redo using two custom Stack history piles and complete logical game snapshots.
 - [x] Structured DSA operation tracker for setup and game actions.
-- [x] Unit tests and GitHub Actions CI (67 tests passing on the current branch).
+- [x] Unit tests and GitHub Actions CI (69 tests passing on the current branch).
 
 ### Still to implement
 - [ ] Full PyQt6 desktop interface.
