@@ -74,3 +74,17 @@ def test_card_conservation_invariant_detects_duplicate():
 
     with pytest.raises(AssertionError):
         state.assert_invariants()
+
+
+def test_initial_deal_records_all_five_required_data_structures():
+    from solitaire.domain.operations import OperationTracker, StructureName
+
+    tracker = OperationTracker()
+    state = create_new_game(Random(2027), tracker=tracker)
+
+    assert tracker.count(StructureName.ARRAY_LIST) > 0
+    assert tracker.count(StructureName.STACK) == 28
+    assert tracker.count(StructureName.QUEUE) == 24
+    assert tracker.count(StructureName.LINKED_LIST) == 28
+    assert tracker.count(StructureName.DICTIONARY) == 52
+    state.assert_invariants()
