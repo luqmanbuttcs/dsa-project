@@ -123,6 +123,6 @@ Complete this list on the target Windows computer before submission. CI cannot s
 
 ## 5. Automated verification
 
-The final GitHub Actions run is the authoritative automated test count for the PR. It runs pytest on Python 3.12 with Qt's offscreen platform, including engine, integration, bonus-feature, drag/drop, monitor, animation, resizing, keyboard, and victory-banner tests.
+The final verified GitHub Actions run passed **111 tests in 2.95 seconds** on November 5, 2026: [run #41997048543](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41997048543). It runs pytest on Python 3.12 with Qt's offscreen platform, including engine, integration, bonus-feature, seeded random-action invariants, drag/drop, monitor, animation, resizing, keyboard, restart, and victory-banner tests.
 
 Manual Windows results should be recorded only after the checklist above is actually performed. Do not mark the visual/manual playtest complete based on CI alone.
