@@ -7,7 +7,7 @@ also allowing a contiguous tableau run to be detached and attached.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, Iterator, TypeVar
+from typing import Generic, Iterable, Iterator, TypeVar
 
 T = TypeVar("T")
 
@@ -26,7 +26,7 @@ class LinkedList(Generic[T]):
 
     __slots__ = ("_head", "_tail", "_size")
 
-    def __init__(self, values: Iterator[T] | None = None) -> None:
+    def __init__(self, values: Iterable[T] | None = None) -> None:
         self._head: LinkedListNode[T] | None = None
         self._tail: LinkedListNode[T] | None = None
         self._size = 0
