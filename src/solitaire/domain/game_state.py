@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from random import Random
+from uuid import uuid4
 
 from solitaire.domain.card import Card, Suit
 from solitaire.domain.deck import DeckFactory
+from solitaire.domain.operations import OperationTracker, StructureName
 from solitaire.structures.queue import Queue
 from solitaire.structures.stack import Stack
 
@@ -130,13 +132,26 @@ class GameState:
         assert self.card_index == expected_locations, "Card dictionary is out of sync with piles"
 
 
-def create_new_game(rng: Random | None = None, draw_count: int = 1) -> GameState:
+def create_new_game(\n    rng: Random | None = None,\n    draw_count: int = 1,\n    tracker: OperationTracker | None = None,\n) -> GameState:
     """Create, shuffle, deal, and index a fresh 52-card Klondike game."""
     if draw_count not in (1, 3):
         raise ValueError("Draw count must be either 1 or 3")
 
+    tracker = tracker or OperationTracker()
+    action_id = f"setup-{uuid4().hex[:8]}"
+
     deck = DeckFactory.create_standard_deck()
+    tracker.record(
+        StructureName.ARRAY_LIST, "CREATE_DECK", action_id=action_id,
+        card_ids=tuple(card.card_id for card in deck),
+        details={"size": len(deck)},
+    )
     DeckFactory.shuffle(deck, rng)
+    tracker.record(
+        StructureName.ARRAY_LIST, "SHUFFLE", action_id=action_id,
+        card_ids=tuple(card.card_id for card in deck),
+        details={"algorithm": "randomized in-place shuffle"},
+    )
 
     tableau: dict[str, TableauColumn] = {}
 
@@ -146,10 +161,23 @@ def create_new_game(rng: Random | None = None, draw_count: int = 1) -> GameState
 
         for card_position in range(column_number):
             card = deck.pop()
+            tracker.record(
+                StructureName.ARRAY_LIST, "POP_FOR_DEAL", action_id=action_id,
+                card_ids=(card.card_id,),
+                details={"destination": column_id, "position": card_position},
+            )
             card.turn_face_down()
             if card_position == column_number - 1:
                 card.turn_face_up()
             column.push(card)
+            tracker.record(
+                StructureName.STACK, "PUSH", action_id=action_id,
+                pile_id=column_id, card_ids=(card.card_id,),
+            )
+            tracker.record(
+                StructureName.LINKED_LIST, "APPEND_NODE", action_id=action_id,
+                pile_id=column_id, card_ids=(card.card_id,),
+            )
 
         tableau[column_id] = column
 
@@ -157,10 +185,18 @@ def create_new_game(rng: Random | None = None, draw_count: int = 1) -> GameState
     for card in deck:
         card.turn_face_down()
         stock.enqueue(card)
+        tracker.record(
+            StructureName.QUEUE, "ENQUEUE", action_id=action_id,
+            pile_id="stock", card_ids=(card.card_id,),
+        )
 
     # The temporary deck list has completed its job. The 24 stock cards
     # now live only in the Queue.
     deck.clear()
+    tracker.record(
+        StructureName.ARRAY_LIST, "CLEAR_AFTER_DEAL", action_id=action_id,
+        details={"reason": "active cards now belong to their piles"},
+    )
 
     waste: Stack[Card] = Stack()
     foundations = {suit: Stack[Card]() for suit in Suit}
@@ -170,6 +206,11 @@ def create_new_game(rng: Random | None = None, draw_count: int = 1) -> GameState
     for position, card in enumerate(stock.to_list()):
         card_index[card.card_id] = CardLocation(
             Zone.STOCK, "stock", position, card.face_up
+        )
+        tracker.record(
+            StructureName.DICTIONARY, "INSERT", action_id=action_id,
+            pile_id="stock", card_ids=(card.card_id,),
+            details={"zone": Zone.STOCK.value, "position": position, "face_up": card.face_up},
         )
 
     for position, card in enumerate(waste.to_list()):
@@ -181,6 +222,11 @@ def create_new_game(rng: Random | None = None, draw_count: int = 1) -> GameState
         for position, card in enumerate(column.cards_bottom_to_top()):
             card_index[card.card_id] = CardLocation(
                 Zone.TABLEAU, column_id, position, card.face_up
+            )
+            tracker.record(
+                StructureName.DICTIONARY, "INSERT", action_id=action_id,
+                pile_id=column_id, card_ids=(card.card_id,),
+                details={"zone": Zone.TABLEAU.value, "position": position, "face_up": card.face_up},
             )
 
     for suit, pile in foundations.items():
@@ -198,4 +244,8 @@ def create_new_game(rng: Random | None = None, draw_count: int = 1) -> GameState
         draw_count=draw_count,
     )
     state.assert_invariants()
+    tracker.record(
+        StructureName.GAME, "INITIAL_DEAL_COMPLETE", action_id=action_id,
+        details={"tableau_cards": 28, "stock_cards": 24, "face_up_tableau_cards": 7},
+    )
     return state
