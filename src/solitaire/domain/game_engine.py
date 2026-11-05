@@ -44,6 +44,18 @@ class MoveEvent:
 
 
 @dataclass(frozen=True, slots=True)
+class MoveHint:
+    """A non-mutating suggestion for one currently legal player action."""
+
+    action_type: str
+    description: str
+    source_pile: str
+    destination_pile: str
+    card_ids: tuple[str, ...] = ()
+    priority: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class GameSnapshot:
     """Immutable logical snapshot used to reverse or reapply one player action."""
 
@@ -79,6 +91,10 @@ def _undoable(method):
 
 class GameEngine:
     """Coordinates rule validation, real structure calls, and card indexing."""
+
+    SCORE_TO_FOUNDATION = 10
+    SCORE_WASTE_TO_TABLEAU = 5
+    SCORE_EXPOSED_CARD = 5
 
     _action_counter = count(1)
 
@@ -230,7 +246,9 @@ class GameEngine:
             details={"node_links": "run attached after destination tail"},
         )
 
-        self._flip_exposed_card(source, action_id)
+        exposed_card_flipped = self._flip_exposed_card(source, action_id)
+        if exposed_card_flipped:
+            self.state.score += self.SCORE_EXPOSED_CARD
         self.state.move_count += 1
         self._refresh_card_index(action_id)
         self._append_move(
@@ -278,6 +296,7 @@ class GameEngine:
             pile_id=destination_column_id, card_ids=(moved.card_id,),
         )
 
+        self.state.score += self.SCORE_WASTE_TO_TABLEAU
         self.state.move_count += 1
         self._refresh_card_index(action_id)
         self._append_move(
@@ -331,7 +350,10 @@ class GameEngine:
             card_ids=(moved.card_id,)
         )
 
-        self._flip_exposed_card(source, action_id)
+        exposed_card_flipped = self._flip_exposed_card(source, action_id)
+        self.state.score += self.SCORE_TO_FOUNDATION
+        if exposed_card_flipped:
+            self.state.score += self.SCORE_EXPOSED_CARD
         self.state.move_count += 1
         self._refresh_card_index(action_id)
         destination_id = f"foundation-{foundation_suit.code.lower()}"
@@ -376,6 +398,7 @@ class GameEngine:
             pile_id=destination_id, card_ids=(moved.card_id,)
         )
 
+        self.state.score += self.SCORE_TO_FOUNDATION
         self.state.move_count += 1
         self._refresh_card_index(action_id)
         self._append_move(
@@ -430,6 +453,157 @@ class GameEngine:
             if RuleValidator.validate_tableau_run(run, top).allowed:
                 destinations.append(column_id)
         return destinations
+
+    def find_hints(self) -> list[MoveHint]:
+        """Enumerate legal visible moves without changing game state or history.
+
+        Foundation moves are prioritized, followed by waste-to-tableau moves,
+        then tableau rearrangements that uncover a hidden card. Stock drawing
+        is suggested only when no visible legal move is available.
+        """
+        if self.state.status is not GameStatus.PLAYING:
+            return []
+
+        hints: list[MoveHint] = []
+
+        def pile_label(pile_id: str) -> str:
+            if pile_id == "waste":
+                return "Waste"
+            if pile_id == "stock":
+                return "Stock"
+            if pile_id.startswith("tableau-"):
+                return f"Tableau {pile_id.rsplit('-', 1)[1]}"
+            if pile_id.startswith("foundation-"):
+                for suit in Suit:
+                    if pile_id == f"foundation-{suit.code.lower()}":
+                        return f"{suit.value} Foundation"
+            return pile_id
+
+        def add_hint(
+            action_type: str,
+            card: Card,
+            source: str,
+            destination: str,
+            *,
+            priority: int,
+            card_ids: tuple[str, ...] | None = None,
+            sequence_size: int = 1,
+        ) -> None:
+            if sequence_size > 1:
+                description = (
+                    f"Move the {card} sequence ({sequence_size} cards) from "
+                    f"{pile_label(source)} to {pile_label(destination)}."
+                )
+            else:
+                description = (
+                    f"Move {card} from {pile_label(source)} to "
+                    f"{pile_label(destination)}."
+                )
+            hints.append(
+                MoveHint(
+                    action_type=action_type,
+                    description=description,
+                    source_pile=source,
+                    destination_pile=destination,
+                    card_ids=card_ids or (card.card_id,),
+                    priority=priority,
+                )
+            )
+
+        # The waste top is the only waste card currently available to move.
+        if not self.state.waste.is_empty():
+            waste_top = self.state.waste.peek()
+            for suit, foundation in self.state.foundations.items():
+                foundation_top = None if foundation.is_empty() else foundation.peek()
+                if RuleValidator.validate_foundation(
+                    waste_top, suit, foundation_top
+                ).allowed:
+                    add_hint(
+                        "WASTE_TO_FOUNDATION", waste_top, "waste",
+                        f"foundation-{suit.code.lower()}", priority=100,
+                    )
+
+            for column_id, column in self.state.tableau.items():
+                destination_top = None if column.is_empty() else column.peek()
+                if RuleValidator.validate_tableau_run(
+                    [waste_top], destination_top
+                ).allowed:
+                    add_hint(
+                        "WASTE_TO_TABLEAU", waste_top, "waste", column_id,
+                        priority=80,
+                    )
+
+        # A tableau card can move to a foundation only when it is the top card.
+        # Every face-up suffix is also considered as a possible tableau run.
+        for source_id, source in self.state.tableau.items():
+            cards = source.cards_bottom_to_top()
+            if not cards:
+                continue
+
+            top_card = cards[-1]
+            for suit, foundation in self.state.foundations.items():
+                foundation_top = None if foundation.is_empty() else foundation.peek()
+                if RuleValidator.validate_foundation(
+                    top_card, suit, foundation_top
+                ).allowed:
+                    add_hint(
+                        "TABLEAU_TO_FOUNDATION", top_card, source_id,
+                        f"foundation-{suit.code.lower()}", priority=100,
+                    )
+
+            for start_index, first_card in enumerate(cards):
+                if not first_card.face_up:
+                    continue
+                run = cards[start_index:]
+                for destination_id, destination in self.state.tableau.items():
+                    if destination_id == source_id:
+                        continue
+                    destination_top = (
+                        None if destination.is_empty() else destination.peek()
+                    )
+                    if not RuleValidator.validate_tableau_run(
+                        run, destination_top
+                    ).allowed:
+                        continue
+
+                    reveals_hidden_card = (
+                        start_index > 0 and not cards[start_index - 1].face_up
+                    )
+                    add_hint(
+                        "TABLEAU_TO_TABLEAU",
+                        first_card,
+                        source_id,
+                        destination_id,
+                        priority=70 if reveals_hidden_card else 60,
+                        card_ids=tuple(card.card_id for card in run),
+                        sequence_size=len(run),
+                    )
+
+        if hints:
+            return sorted(hints, key=lambda hint: -hint.priority)
+
+        # Stock draw is a legal fallback when no exposed card can currently move.
+        if not self.state.stock.is_empty():
+            return [
+                MoveHint(
+                    "DRAW_STOCK",
+                    "Draw the next card from Stock to look for another move.",
+                    "stock",
+                    "waste",
+                    priority=0,
+                )
+            ]
+        if not self.state.waste.is_empty():
+            return [
+                MoveHint(
+                    "DRAW_STOCK",
+                    "Recycle the Waste pile into Stock, then draw again.",
+                    "stock",
+                    "waste",
+                    priority=0,
+                )
+            ]
+        return []
 
     def undo(self) -> bool:
         """Restore the state immediately before the most recent successful action.
@@ -731,9 +905,10 @@ class GameEngine:
             details={"recycled_count": len(recycled)}
         )
 
-    def _flip_exposed_card(self, column, action_id: str) -> None:
+    def _flip_exposed_card(self, column, action_id: str) -> bool:
+        """Flip the newly exposed top card and report whether a flip occurred."""
         if column.is_empty():
-            return
+            return False
         exposed = column.peek()
         if not exposed.face_up:
             exposed.turn_face_up()
@@ -743,6 +918,8 @@ class GameEngine:
                 pile_id=column.column_id,
                 card_ids=(exposed.card_id,),
             )
+            return True
+        return False
 
     def _refresh_card_index(self, action_id: str, *, context: str = "PLAY") -> None:
         expected: dict[str, CardLocation] = {}
