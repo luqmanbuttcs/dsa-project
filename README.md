@@ -36,7 +36,7 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Legal move hints generated from the current face-up game state.
 - [x] Timer that starts on the first successful action, pauses at victory, and survives undo/redo without rewinding.
 - [x] Performance scoring: +10 for a foundation move, +5 for waste-to-tableau, and +5 for exposing a face-down tableau card.
-- [x] Unit tests and GitHub Actions CI (92 tests targeted on the current branch; final CI verification pending).
+- [x] Unit tests and GitHub Actions CI (**92 tests passed** on November 5, 2026; [run #41993667114](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41993667114)).
 
 ### Phase 4 — Basic PyQt6 User Interface: implemented
 - [x] PyQt6 `QMainWindow` with a green-felt board and navy application shell.
@@ -117,4 +117,4 @@ The automated suite now covers the assignment's validation checklist:
 - **Win condition:** four complete, ordered suit foundations are required. A deterministic four-King endgame test verifies the final legal moves, win status, and undo/redo of the victory transition.
 - **Game flow:** fresh-game initialization is checked for 52 unique cards, 28 tableau cards, 24 stock cards, seven columns, and the required face-up/down arrangement. The endgame test then exercises legal completion through the engine.
 
-GitHub Actions previously reported **85 passing tests** before the bonus-feature test additions. The current bonus-feature branch targets **92 tests**; see the latest CI run for the verified result.
+GitHub Actions confirms **92 passing tests** on November 5, 2026: [run #41993667114](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41993667114).
