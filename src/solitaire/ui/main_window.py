@@ -172,7 +172,7 @@ class MainWindow(QMainWindow):
         tableau_scroll = QScrollArea()
         tableau_scroll.setObjectName("tableau-scroll-area")
         tableau_scroll.setWidgetResizable(True)
-        tableau_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.AsNeeded)
+        tableau_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         tableau_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.AsNeeded)
         tableau_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         tableau_content = QWidget()
