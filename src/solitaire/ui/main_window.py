@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from random import Random
+from time import monotonic
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -50,13 +51,28 @@ class MainWindow(QMainWindow):
         self._selected_pile_id: str | None = None
         self._tableau_widgets: dict[str, TableauColumnWidget] = {}
         self._foundation_widgets: dict[Suit, FoundationSlot] = {}
+        self._elapsed_base = float(self.engine.state.elapsed_seconds)
+        self._clock_activated = bool(
+            self.engine.state.move_count or self.engine.state.elapsed_seconds
+        )
+        self._clock_started_at: float | None = (
+            monotonic()
+            if self._clock_activated and self.engine.state.status is not GameStatus.WON
+            else None
+        )
+        self._hint_index = 0
 
         self.setObjectName("klondike-main-window")
         self.setWindowTitle("Klondike Solitaire — CSC200 DSA Edition")
         self.setMinimumSize(1160, 780)
         self.resize(1440, 940)
         self._build_ui()
+        self._clock_timer = QTimer(self)
+        self._clock_timer.setInterval(1000)
+        self._clock_timer.timeout.connect(self._update_clock_display)
+        self._clock_timer.start()
         self._refresh_board()
+        self._update_clock_display()
 
     @property
     def selected_card_id(self) -> str | None:
@@ -110,6 +126,31 @@ class MainWindow(QMainWindow):
             "padding: 9px 12px; font-size: 12px; font-weight: 700;"
         )
         header.addWidget(self.moves_label)
+
+        self.score_label = QLabel(f"SCORE  {self.engine.state.score}")
+        self.score_label.setObjectName("score-label")
+        self.score_label.setStyleSheet(
+            "background: #0B2438; border: 1px solid #26445A; border-radius: 8px; "
+            "padding: 9px 12px; font-size: 12px; font-weight: 700;"
+        )
+        header.addWidget(self.score_label)
+
+        self.timer_label = QLabel("TIME  00:00")
+        self.timer_label.setObjectName("timer-label")
+        self.timer_label.setStyleSheet(
+            "background: #0B2438; border: 1px solid #26445A; border-radius: 8px; "
+            "padding: 9px 12px; font-size: 12px; font-weight: 700;"
+        )
+        header.addWidget(self.timer_label)
+
+        self.hint_button = QPushButton("💡 Hint")
+        self.hint_button.setObjectName("hint-button")
+        self.hint_button.setStyleSheet(
+            "QPushButton { background: #B98216; color: #142332; }"
+            "QPushButton:hover { background: #D69A24; }"
+        )
+        self.hint_button.clicked.connect(self._show_hint)
+        header.addWidget(self.hint_button)
 
         self.new_game_button = QPushButton("New Game")
         self.new_game_button.setObjectName("new-game-button")
@@ -271,6 +312,7 @@ class MainWindow(QMainWindow):
             self._set_status(str(error), error=True)
             return
 
+        self._mark_player_action()
         self._clear_selection()
         self._set_status(f"Drew {len(drawn)} card(s). Select the top waste card to move it.")
         self._refresh_board()
@@ -304,6 +346,7 @@ class MainWindow(QMainWindow):
             self._set_status(str(error), error=True)
             return
 
+        self._mark_player_action()
         self._clear_selection()
         self._set_status("Move completed.")
         self._refresh_board()
@@ -336,6 +379,7 @@ class MainWindow(QMainWindow):
             self._set_status("That source cannot move to a tableau column.", error=True)
             return
 
+        self._mark_player_action()
         self._clear_selection()
         self._set_status("Move completed.")
         self._refresh_board()
@@ -364,6 +408,7 @@ class MainWindow(QMainWindow):
             self._set_status(str(error), error=True)
             return
 
+        self._mark_player_action()
         self._clear_selection()
         if self.engine.state.status is GameStatus.WON:
             self._set_status("You won! All 52 cards are in their foundations.")
@@ -375,6 +420,8 @@ class MainWindow(QMainWindow):
         if not self.engine.undo():
             self._set_status("There is no move to undo.")
             return
+        self._sync_clock_with_game_status()
+        self._hint_index = 0
         self._clear_selection()
         self._set_status("Last move undone.")
         self._refresh_board()
@@ -383,6 +430,8 @@ class MainWindow(QMainWindow):
         if not self.engine.redo():
             self._set_status("There is no move to redo.")
             return
+        self._sync_clock_with_game_status()
+        self._hint_index = 0
         self._clear_selection()
         self._set_status("Last move redone.")
         self._refresh_board()
@@ -393,9 +442,89 @@ class MainWindow(QMainWindow):
         self.engine = GameEngine(
             create_new_game(draw_count=draw_count, tracker=tracker), tracker
         )
+        self._elapsed_base = 0.0
+        self._clock_started_at = None
+        self._clock_activated = False
+        self._hint_index = 0
+        self._update_clock_display()
         self._clear_selection()
         self._set_status("New shuffled game started.")
         self._refresh_board()
+
+    def _show_hint(self) -> None:
+        """Select the source card for the next highest-priority legal hint."""
+        hints = self.engine.find_hints()
+        if not hints:
+            self._clear_selection()
+            self._refresh_board()
+            self._set_status("No legal moves are available. Start a new game.")
+            return
+
+        self._hint_index %= len(hints)
+        hint_number = self._hint_index + 1
+        hint = hints[self._hint_index]
+        self._hint_index = (self._hint_index + 1) % len(hints)
+
+        self._clear_selection()
+        if hint.card_ids and hint.source_pile in ("waste",) or (
+            hint.card_ids and hint.source_pile.startswith("tableau-")
+        ):
+            self._selected_card_id = hint.card_ids[0]
+            self._selected_pile_id = hint.source_pile
+
+        self._refresh_board()
+        self._set_status(
+            f"Hint {hint_number}/{len(hints)}: {hint.description} "
+            "The source card is selected; choose the suggested destination."
+        )
+
+    def _elapsed_seconds(self) -> int:
+        elapsed = self._elapsed_base
+        if self._clock_started_at is not None:
+            elapsed += max(0.0, monotonic() - self._clock_started_at)
+        return max(0, int(elapsed))
+
+    @staticmethod
+    def _format_elapsed_time(seconds: int) -> str:
+        hours, remainder = divmod(seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}"
+
+    def _update_clock_display(self) -> None:
+        elapsed = self._elapsed_seconds()
+        self.engine.state.elapsed_seconds = elapsed
+        if hasattr(self, "timer_label"):
+            self.timer_label.setText(
+                f"TIME  {self._format_elapsed_time(elapsed)}"
+            )
+
+    def _mark_player_action(self) -> None:
+        """Start the clock after the first successful move and stop on victory."""
+        if not self._clock_activated:
+            self._clock_activated = True
+            self._clock_started_at = monotonic()
+        if self.engine.state.status is GameStatus.WON:
+            self._pause_clock()
+        self._hint_index = 0
+        self._update_clock_display()
+
+    def _pause_clock(self) -> None:
+        if self._clock_started_at is not None:
+            self._elapsed_base = float(self._elapsed_seconds())
+            self._clock_started_at = None
+        self.engine.state.elapsed_seconds = int(self._elapsed_base)
+        self._update_clock_display()
+
+    def _sync_clock_with_game_status(self) -> None:
+        if self.engine.state.status is GameStatus.WON:
+            self._pause_clock()
+        elif self._clock_activated and self._clock_started_at is None:
+            self._clock_started_at = monotonic()
+            self._update_clock_display()
+        else:
+            self._update_clock_display()
 
     def _clear_selection(self) -> None:
         self._selected_card_id = None
@@ -426,6 +555,8 @@ class MainWindow(QMainWindow):
             )
 
         self.moves_label.setText(f"MOVES  {state.move_count}")
+        self.score_label.setText(f"SCORE  {state.score}")
+        self.hint_button.setEnabled(state.status is GameStatus.PLAYING)
         self.undo_button.setEnabled(self.engine.can_undo)
         self.redo_button.setEnabled(self.engine.can_redo)
         self.move_log.clear()
