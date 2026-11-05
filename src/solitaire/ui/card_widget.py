@@ -22,8 +22,8 @@ class CardButton(QPushButton):
     drag_finished = pyqtSignal()
     drop_requested = pyqtSignal(str, str, str)
 
-    CARD_WIDTH = 108
-    CARD_HEIGHT = 150
+    CARD_WIDTH = 116
+    CARD_HEIGHT = 160
 
     def __init__(
         self,
@@ -126,7 +126,7 @@ class CardButton(QPushButton):
         painter.drawPath(card_path)
 
         ink = QColor("#D51E35") if self._card.color is CardColor.RED else QColor("#101923")
-        rank_font = QFont("Georgia", 18, QFont.Weight.Bold)
+        rank_font = QFont("Georgia", 19, QFont.Weight.Bold)
         painter.setFont(rank_font)
         painter.setPen(ink)
         painter.drawText(
@@ -142,7 +142,7 @@ class CardButton(QPushButton):
             self._card.suit.symbol,
         )
 
-        central_font = QFont("Segoe UI Symbol", 67, QFont.Weight.Bold)
+        central_font = QFont("Segoe UI Symbol", 74, QFont.Weight.Bold)
         painter.setFont(central_font)
         painter.drawText(
             QRectF(bounds.left() + 17, bounds.top() + 37, bounds.width() - 34, bounds.height() - 48),
