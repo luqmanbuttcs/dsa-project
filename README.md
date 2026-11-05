@@ -36,7 +36,7 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Legal move hints generated from the current face-up game state.
 - [x] Timer that starts on the first successful action, pauses at victory, and survives undo/redo without rewinding.
 - [x] Performance scoring: +10 for a foundation move, +5 for waste-to-tableau, and +5 for exposing a face-down tableau card.
-- [x] Unit tests and GitHub Actions CI (**92 tests passed** on November 5, 2026; [run #41993667114](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41993667114)).
+- [x] Unit tests and GitHub Actions CI (latest verified result is recorded below after the full UI milestone).
 
 ### Phase 4 — Basic PyQt6 User Interface: implemented
 - [x] PyQt6 `QMainWindow` with a green-felt board and navy application shell.
@@ -44,14 +44,15 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Click-to-select and click-to-move interactions for tableau and waste cards.
 - [x] Draw 1 / Draw 3 selector, New Game, Undo, Redo, and Hint controls.
 - [x] Move count, score, elapsed-time display, non-blocking status feedback, and a separate player Move Log.
-- [x] Offscreen UI smoke tests for board rendering and real game-engine interactions.
+- [x] Drag-and-drop from Waste/Tableau to legal Tableau/Foundation targets through GameEngine validation.
+- [x] Gold-highlighted legal destinations, animated card travel, stock draw, and face-up reveal transitions.
+- [x] Reduced-motion option, keyboard shortcuts, restart confirmation, and non-modal victory banner.
+- [x] Live five-structure DSA Monitor with current state, expandable structure details, latest action summary, and timestamped low-level operation history.
+- [x] Offscreen UI tests for drag/drop acceptance/rejection, animations, monitor events, victory banner, keyboard shortcuts, and resizing.
 
-### Still to implement
-- [ ] Drag-and-drop interaction and card movement/flip animations.
-- [ ] Live five-structure DSA Monitor and low-level operation history view.
-- [ ] Settings, final visual/manual playtest, and demonstration preparation.
-
-The current branch includes a runnable PyQt6 board. Animation and the expanded DSA Monitor remain later milestones.
+### Remaining before submission
+- [ ] Complete the manual Windows playtest checklist in [Demo and Playtest Guide](docs/07-demo-and-playtest.md).
+- [ ] Capture final screenshots and prepare the live demonstration.
 
 ## Development setup (Windows PowerShell)
 
@@ -104,7 +105,7 @@ Verification at Phase 3 completion: **69 passing tests**. The current Phase 4 br
 
 ## Phase 4 — User Interface
 
-The basic desktop board is implemented in `src/solitaire/ui/` and starts with `python -m solitaire.main`. It displays the stock, waste, four foundations, and seven tableau columns. Use click-to-select followed by a click on a legal destination; the interface delegates every move to `GameEngine`. Drag-and-drop, animation, and the expanded DSA Monitor are not part of this initial UI milestone. GitHub Actions verifies the board with **75 passing tests**, including the six offscreen UI smoke tests.
+The desktop board in `src/solitaire/ui/` starts with `python -m solitaire.main`. It displays stock, waste, four foundations, and seven tableau columns; supports click-to-move and drag-and-drop; animates card travel and reveals; and provides a collapsible live DSA Monitor. All moves are delegated to `GameEngine`, so invalid drops do not mutate game state. Use the [Demo and Playtest Guide](docs/07-demo-and-playtest.md) for controls and manual validation.
 
 
 ## Validation and Testing
@@ -117,4 +118,21 @@ The automated suite now covers the assignment's validation checklist:
 - **Win condition:** four complete, ordered suit foundations are required. A deterministic four-King endgame test verifies the final legal moves, win status, and undo/redo of the victory transition.
 - **Game flow:** fresh-game initialization is checked for 52 unique cards, 28 tableau cards, 24 stock cards, seven columns, and the required face-up/down arrangement. The endgame test then exercises legal completion through the engine.
 
-GitHub Actions confirms **92 passing tests** on November 5, 2026: [run #41993667114](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41993667114).
+GitHub Actions confirmed **101 passing tests** before the final UI edge-case tests were added. The final PR head test result will be recorded here after those last tests complete.
+
+
+## Keyboard controls
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Z` | Undo |
+| `Ctrl+Y` | Redo |
+| `Ctrl+N` | New Game (asks before discarding a played game) |
+| `H` | Show the next legal-move hint |
+| `Space` | Draw from Stock |
+
+Use the **DSA Monitor** button to show or hide the five-structure monitor. Enable **Reduce motion** to skip card travel/flip animations while retaining game feedback and operation history.
+
+## Final project walkthrough
+
+See [Demo and Playtest Guide](docs/07-demo-and-playtest.md) for the five data-structure demonstration sequence, feature walkthrough, and Windows manual checklist.
