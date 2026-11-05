@@ -241,30 +241,24 @@ After the six-document baseline is in place, start with the project scaffold and
 
 ## 7. Implementation progress snapshot
 
-**Latest verified baseline:** `feat/core-data-structures`
+**Active branch:** `feat/core-data-structures`  
+**Pull request:** [#1](https://github.com/luqmanbuttcs/dsa-project/pull/1) (draft, open, not merged)
 
 Completed and covered by automated tests:
-- Custom doubly linked list, including node-preserving run detach/attach.
-- Custom Stack abstraction backed by the linked list.
-- Custom FIFO circular-buffer Queue.
-- Card model and Array/List deck creation/shuffle.
-- Exact initial Klondike deal and Dictionary card index.
-- Tableau and foundation move validation.
-- Draw 1/Draw 3, waste handling, and stock recycling.
-- Tableau run moves, waste-to-tableau, and tableau/waste-to-foundation actions.
-- Automatic exposed-card flipping and win detection.
-- Full-state undo/redo snapshots for all move types, including stock recycling and newly exposed-card flips.
-- Structured DSA operation events with distinct PLAY, UNDO, REDO, and HISTORY contexts.
+- Custom doubly linked list, Stack, and FIFO circular-buffer Queue.
+- Card/Deck model, 52-card Array/List, exact initial deal, and Dictionary card index.
+- Tableau and foundation movement, legal-move validation, stock recycling, card flipping, and strict victory.
+- Full-state Stack-based Undo/Redo, including score and move-state restoration.
+- Non-mutating legal Hint enumeration and Hint UI.
+- Monotonic session timer and documented scoring.
+- PyQt6 game board with click-to-move and drag-and-drop routes for Tableau and Foundation targets.
+- Legal-destination preview; rejected drops preserve all piles and Dictionary entries.
+- Animated card travel, Draw 1/Draw 3 presentation, and exposed-card flip; Undo/Redo also animate visible card moves.
+- Reduced-motion setting, keyboard shortcuts, New Game discard confirmation, and non-blocking victory banner.
+- Live five-structure DSA Monitor with current size/state, structure details, latest action breakdown, timestamped event history, and separate player Move Log.
+- Responsive minimum-size/scroll tests, deterministic endgame tests, and seeded random legal-action invariant tests.
 
-GitHub Actions reports **69 passing tests** on the current implementation branch.
-
-Still pending:
-- PyQt6 board, card widgets, drag/drop, and animation.
-- Live DSA monitor presentation, move log, and final UI/resizing/accessibility checks.
-- Optional Hint, timer/score behavior, and final demonstration preparation.
-
-This snapshot describes verified implementation status, not a change to the original assignment scope.
-
+**Manual verification still belongs to the project owner:** real mouse drag/drop feel, screen scaling, clipped controls, and visual smoothness need to be checked on the target Windows display using `docs/07-demo-and-playtest.md`. Offscreen CI is not a substitute for that check.
 
 ### Game-mechanics verification addendum
 
