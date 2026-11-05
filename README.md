@@ -6,7 +6,7 @@ The approved UI direction uses a green-felt game board, dark navy panels, animat
 
 ## Project documentation
 
-The six project documents are maintained in [docs/](docs/):
+The project documentation is maintained in [docs/](docs/):
 
 1. [Product Requirements](docs/01-product-requirements.md)
 2. [Technical Requirements](docs/02-technical-requirements.md)
@@ -14,6 +14,7 @@ The six project documents are maintained in [docs/](docs/):
 4. [Design Brief](docs/04-design-brief.md)
 5. [Backend / Domain Schema](docs/05-backend-schema.md)
 6. [Implementation Plan](docs/06-implementation-plan.md)
+7. [Demo and Playtest Guide](docs/07-demo-and-playtest.md)
 
 ## Implementation status
 
