@@ -669,3 +669,57 @@ def test_nonblocking_victory_panel_appears_and_undo_hides_it(app):
     assert engine.state.status is GameStatus.PLAYING
     assert not window.victory_panel.isVisible()
     window.close()
+
+
+def test_reference_style_dashboard_exposes_live_structures_stats_and_modes(app):
+    engine = GameEngine(create_new_game(Random(4510)))
+    window = MainWindow(engine)
+    window.show()
+    app.processEvents()
+
+    panel = window.dsa_monitor
+    assert len(panel.structure_cards) == 5
+    assert panel.main_tabs.tabText(0).endswith("DSA Monitor")
+    assert panel.main_tabs.tabText(1).endswith("Game Stats")
+    assert panel.game_stats_labels["stock"].text() == "24 cards"
+    assert panel.game_stats_labels["foundations"].text() == "0 / 52 cards"
+    assert not panel.details_panel.isVisible()
+
+    window.stock_button.click()
+    assert panel.game_stats_labels["stock"].text() == "23 cards"
+    assert panel.game_stats_labels["moves"].text() == "1"
+    assert panel.move_timeline.count() == 1
+    assert "Drew 1 card(s) from Stock" in panel.move_timeline.item(0).text()
+    assert panel.operation_history.count() > 0
+    assert any(
+        "Queue · DEQUEUE" in panel.operation_history.item(index).text()
+        for index in range(panel.operation_history.count())
+    )
+
+    panel.dsa_lab_button.click()
+    assert panel.dsa_lab_button.isChecked()
+    assert panel.details_panel.isVisible()
+    assert panel.main_tabs.currentIndex() == 0
+
+    panel.play_mode_button.click()
+    assert panel.play_mode_button.isChecked()
+    assert not panel.details_panel.isVisible()
+    window.close()
+
+
+def test_premium_card_dimensions_and_settings_controls_remain_available(app):
+    window = MainWindow(GameEngine(create_new_game(Random(4511))))
+    assert window.stock_button.width() == 116
+    assert window.stock_button.height() == 188
+    assert window.tableau_widgets["tableau-1"].card_buttons[0].width() == 116
+    assert window.tableau_widgets["tableau-1"].card_buttons[0].height() == 160
+    assert window.new_game_button is not None
+    assert window.dsa_monitor_button is not None
+    assert window.settings_button.menu() is not None
+    action_texts = {
+        window.settings_button.menu().actions()[index].text()
+        for index in range(len(window.settings_button.menu().actions()))
+    }
+    assert "New Game" in action_texts
+    assert "Show DSA Monitor" in action_texts
+    window.close()
