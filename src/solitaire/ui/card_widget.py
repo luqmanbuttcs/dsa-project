@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QByteArray, QPoint, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QDrag, QPainter, QColor, QPen, QFont, QLinearGradient
+from PyQt6.QtGui import QBrush, QDrag, QPainter, QColor, QPen, QFont, QLinearGradient, QPainterPath
 from PyQt6.QtCore import QMimeData
 from PyQt6.QtWidgets import QApplication, QPushButton
 
@@ -112,16 +112,16 @@ class CardButton(QPushButton):
         radius = 9.0
         # Soft, built-in shadow; no external image or graphics dependency.
         shadow = bounds.translated(0, 2)
-        shadow_path = __import__("PyQt6.QtGui", fromlist=["QPainterPath"]).QPainterPath()
+        shadow_path = QPainterPath()
         shadow_path.addRoundedRect(shadow, radius, radius)
-        painter.fillPath(shadow_path, QColor(0, 14, 24, 90))
+        painter.fillPath(shadow_path, QBrush(QColor(0, 14, 24, 90)))
 
-        card_path = __import__("PyQt6.QtGui", fromlist=["QPainterPath"]).QPainterPath()
+        card_path = QPainterPath()
         card_path.addRoundedRect(bounds, radius, radius)
         face_gradient = QLinearGradient(bounds.topLeft(), bounds.bottomLeft())
         face_gradient.setColorAt(0.0, QColor("#FFFFFF"))
         face_gradient.setColorAt(1.0, QColor("#F1EDE3"))
-        painter.fillPath(card_path, face_gradient)
+        painter.fillPath(card_path, QBrush(face_gradient))
         painter.setPen(QPen(QColor("#D8D5CC"), 1.0))
         painter.drawPath(card_path)
 
