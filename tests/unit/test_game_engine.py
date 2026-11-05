@@ -330,3 +330,102 @@ def test_last_foundation_card_triggers_win_detection():
     assert sum(pile.size() for pile in state.foundations.values()) == 52
     assert engine.tracker.events[-1].operation == "GAME_WON"
     state.assert_invariants()
+
+
+
+def test_victory_requires_four_complete_ordered_foundations():
+    from solitaire.domain.card import Rank
+    from solitaire.domain.game_state import GameStatus
+
+    cards = {card.card_id: card for card in DeckFactory.create_standard_deck()}
+    stock = Queue()
+    waste = Stack()
+    tableau = {
+        f"tableau-{number}": TableauColumn(f"tableau-{number}")
+        for number in range(1, 8)
+    }
+    foundations = {suit: Stack() for suit in Suit}
+
+    for suit in Suit:
+        for rank in Rank:
+            card = cards[f"{suit.code}-{rank.label}"]
+            card.turn_face_up()
+            foundations[suit].push(card)
+
+    index = {}
+    for suit, pile in foundations.items():
+        for position, card in enumerate(pile.to_list()):
+            index[card.card_id] = CardLocation(
+                Zone.FOUNDATION,
+                f"foundation-{suit.code.lower()}",
+                position,
+                card.face_up,
+            )
+
+    state = GameState(
+        stock=stock,
+        waste=waste,
+        tableau=tableau,
+        foundations=foundations,
+        card_index=index,
+        status=GameStatus.PLAYING,
+    )
+    state.assert_invariants()
+
+    engine = GameEngine(state)
+    assert engine.has_won()
+    engine._update_win_status("test-complete")
+    assert state.status is GameStatus.WON
+
+
+def test_victory_is_false_when_foundation_order_is_corrupted():
+    from solitaire.domain.card import Rank
+
+    cards = {card.card_id: card for card in DeckFactory.create_standard_deck()}
+    stock = Queue()
+    waste = Stack()
+    tableau = {
+        f"tableau-{number}": TableauColumn(f"tableau-{number}")
+        for number in range(1, 8)
+    }
+    foundations = {suit: Stack() for suit in Suit}
+
+    for suit in Suit:
+        for rank in Rank:
+            card = cards[f"{suit.code}-{rank.label}"]
+            card.turn_face_up()
+            foundations[suit].push(card)
+
+    # Swap the first two Hearts in a deliberately invalid test state.
+    hearts = foundations[Suit.HEARTS].to_list()
+    hearts[0], hearts[1] = hearts[1], hearts[0]
+    foundations[Suit.HEARTS].clear()
+    for card in hearts:
+        foundations[Suit.HEARTS].push(card)
+
+    index = {}
+    for suit, pile in foundations.items():
+        for position, card in enumerate(pile.to_list()):
+            index[card.card_id] = CardLocation(
+                Zone.FOUNDATION,
+                f"foundation-{suit.code.lower()}",
+                position,
+                card.face_up,
+            )
+
+    state = GameState(
+        stock=stock,
+        waste=waste,
+        tableau=tableau,
+        foundations=foundations,
+        card_index=index,
+    )
+    engine = GameEngine(state)
+
+    assert not engine.has_won()
+    try:
+        state.assert_invariants()
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("Expected corrupted foundation ordering to fail invariants")
