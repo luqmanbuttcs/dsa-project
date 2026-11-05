@@ -23,13 +23,14 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Linked-list-backed Stack
 - [x] Circular-buffer FIFO Queue
 - [x] Unit tests for the core structures
-- [ ] Card and deck model
-- [ ] Initial game setup
+- [x] Card and deck model
+- [x] Initial 1–7 tableau deal and 24-card stock
+- [x] Dictionary card-location index
 - [ ] Klondike move validation and game engine
 - [ ] Undo/redo and operation instrumentation
 - [ ] PyQt6 board, card animations, and DSA monitor
 
-The project is being implemented in small, testable milestones. The current UI is not yet runnable.
+The project is being implemented in small, testable milestones. The current UI is not yet runnable. The core structure, deck, and initial-state tests are passing in GitHub Actions.
 
 ## Development setup (Windows PowerShell)
 
