@@ -309,7 +309,7 @@ def _make_drop_event(
     mime = QMimeData()
     mime.setData(
         "application/x-klondike-card",
-        QByteArray(f"{card_id}\\t{source_pile}".encode("utf-8")),
+        QByteArray(f"{card_id}\t{source_pile}".encode("utf-8")),
     )
     event = QDropEvent(
         QPointF(12, 12),
@@ -398,7 +398,7 @@ def test_dsa_monitor_shows_real_operations_and_current_structure_state(app):
         StructureName.QUEUE
     ].toPlainText()
     assert "Front / next to draw" in queue_details
-    assert "Stock Queue" in queue_details
+    assert "STOCK QUEUE" in queue_details
     window.close()
 
 
