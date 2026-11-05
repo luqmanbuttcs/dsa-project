@@ -52,12 +52,11 @@ class GameSnapshot:
     tableau_ids: tuple[tuple[str, tuple[str, ...]], ...]
     foundation_ids: tuple[tuple[Suit, tuple[str, ...]], ...]
     face_states: tuple[tuple[str, bool], ...]
-    draw_count: int
     status: GameStatus
     move_count: int
-    elapsed_seconds: int
     score: int
-    move_history: tuple[MoveEvent, ...]
+    move_history_length: int
+    last_move_event: MoveEvent | None
 
 
 def _undoable(method):
@@ -504,12 +503,11 @@ class GameEngine:
             face_states=tuple(
                 (card_id, cards[card_id].face_up) for card_id in sorted(cards)
             ),
-            draw_count=self.state.draw_count,
             status=self.state.status,
             move_count=self.state.move_count,
-            elapsed_seconds=self.state.elapsed_seconds,
             score=self.state.score,
-            move_history=tuple(self.move_history),
+            move_history_length=len(self.move_history),
+            last_move_event=self.move_history[-1] if self.move_history else None,
         )
 
     def _store_undo_snapshot(self, snapshot: GameSnapshot, action_id: str) -> None:
@@ -686,12 +684,23 @@ class GameEngine:
                     details={"purpose": "state restoration"},
                 )
 
-        self.state.draw_count = snapshot.draw_count
         self.state.status = snapshot.status
         self.state.move_count = snapshot.move_count
-        self.state.elapsed_seconds = snapshot.elapsed_seconds
         self.state.score = snapshot.score
-        self.move_history = list(snapshot.move_history)
+
+        # The timer and Draw 1/Draw 3 preference are not game moves: undo
+        # must not rewind elapsed real time or override the current setting.
+        target_history_length = snapshot.move_history_length
+        self.move_history = self.move_history[:target_history_length]
+        if target_history_length:
+            if snapshot.last_move_event is None:
+                raise AssertionError("Snapshot is missing its last MoveEvent")
+            if len(self.move_history) == target_history_length:
+                self.move_history[-1] = snapshot.last_move_event
+            elif len(self.move_history) == target_history_length - 1:
+                self.move_history.append(snapshot.last_move_event)
+            else:
+                raise AssertionError("Move history cannot be restored from this snapshot")
         self._refresh_card_index(action_id, context=context)
         self.state.assert_invariants()
 
