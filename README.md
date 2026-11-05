@@ -35,13 +35,20 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Structured DSA operation tracker for setup and game actions.
 - [x] Unit tests and GitHub Actions CI (69 tests passing on the current branch).
 
+### Phase 4 — Basic PyQt6 User Interface: implemented
+- [x] PyQt6 `QMainWindow` with a green-felt board and navy application shell.
+- [x] Stock pile, visible waste cards, four suit foundations, and seven tableau columns.
+- [x] Click-to-select and click-to-move interactions for tableau and waste cards.
+- [x] Draw 1 / Draw 3 selector, New Game, Undo, and Redo controls.
+- [x] Move count, non-blocking status feedback, and a separate player Move Log.
+- [x] Offscreen UI smoke tests for board rendering and real game-engine interactions.
+
 ### Still to implement
-- [ ] Full PyQt6 desktop interface.
-- [ ] Card drag-and-drop and movement/flip animations.
-- [ ] Live DSA Monitor widgets and move/operation history views.
+- [ ] Drag-and-drop interaction and card movement/flip animations.
+- [ ] Live five-structure DSA Monitor and low-level operation history view.
 - [ ] Hint, timer/score polish, settings, and final UI validation.
 
-The current branch contains the tested domain/game-engine foundation. The graphical interface is not yet runnable.
+The current branch includes a runnable PyQt6 board. Animation and the expanded DSA Monitor remain later milestones.
 
 ## Development setup (Windows PowerShell)
 
@@ -51,6 +58,10 @@ Use Python 3.12 or another version supported by the selected PyQt6 release.
     .\.venv\Scripts\Activate.ps1
     python -m pip install --upgrade pip
     python -m pip install -e ".[dev]"
+
+Run the desktop game:
+
+    python -m solitaire.main
 
 Run the unit tests:
 
@@ -86,3 +97,8 @@ The instructor's Card and Deck phase and Tableau and Foundation phase are implem
 - Undo/redo restoration uses the custom Stack, Queue, Linked List, and Dictionary-backed model. Operation events remain append-only and identify PLAY, UNDO, REDO, and HISTORY contexts.
 
 Verification: GitHub Actions reports **64 passing tests** on the current branch.
+
+
+## Phase 4 — User Interface
+
+The basic desktop board is implemented in `src/solitaire/ui/` and starts with `python -m solitaire.main`. It displays the stock, waste, four foundations, and seven tableau columns. Use click-to-select followed by a click on a legal destination; the interface delegates every move to `GameEngine`. Drag-and-drop, animation, and the expanded DSA Monitor are not part of this initial UI milestone.
