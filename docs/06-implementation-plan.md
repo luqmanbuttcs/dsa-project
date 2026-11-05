@@ -270,7 +270,7 @@ The latest game-mechanics pass adds/strengthens:
 - Strict victory check: stock, waste, and all tableau columns must be empty; every foundation must contain exactly Ace through King of its own suit.
 - Automated coverage for correct and corrupted foundation states.
 
-Latest confirmed CI result: **69 passed**.
+Historical game-mechanics checkpoint: **69 passed** before the later UI/bonus milestones.
 
 
 ## 8. Phase 1 and Phase 2 implementation status
@@ -350,7 +350,7 @@ Automated integration and unit tests now cover the requested validation checklis
 
 **Deterministic endgame note:** a random shuffled Klondike deal is not guaranteed to be solvable. The win-flow test therefore uses a valid, deterministic near-complete endgame state to test the final legal moves and win transition. It does not pretend to solve a random shuffle automatically.
 
-**Verification:** GitHub Actions reports **85 passing tests** across unit, integration, and offscreen UI coverage. Latest successful run: https://github.com/luqmanbuttcs/dsa-project/actions/runs/41991955530
+**Historical verification at the validation milestone:** 85 passing tests across unit, integration, and offscreen UI coverage. The completed branch's expanded UI suite is recorded in Section 13.
 
 
 ## 12. Bonus Features — implemented
@@ -383,4 +383,18 @@ The optional Undo/Redo, Hint, Timer, and Scoring features are implemented on the
 ### Verification
 - Added unit coverage for legal hint enumeration, hint prioritization, stock-draw fallback, non-mutating hints, score awards, and score undo/redo restoration.
 - Added offscreen UI coverage for Hint selection, the visible score, timer progression, timer persistence across undo, and timer reset on New Game.
-- GitHub Actions confirmed **92 passing tests** on November 5, 2026: [run #41993667114](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41993667114).
+- Historical verification at the bonus-feature milestone: 92 passing tests. The final expanded suite is recorded in Section 13.
+
+
+## 13. Final UI completion and verification
+
+**Completed implementation**
+- Drag/drop supports Waste and face-up Tableau sources, Tableau/Foundation destinations, full legal move validation, legal destination highlighting, and rejection without state mutation.
+- Card travel, stock draw, and exposed-card flip animations are synchronized to actual engine state changes. Visible moves animate through Undo/Redo as well.
+- Reduce motion, keyboard shortcuts, New Game discard confirmation, and the non-modal victory banner are implemented.
+- The live five-structure monitor shows real operation counts, current state, detailed structure views, the latest grouped action, and ordered UTC-timestamped low-level history. Player Move Log remains separate.
+- Documentation includes the Windows run instructions, controls, DSA presentation sequence, and manual playtest checklist in `docs/07-demo-and-playtest.md`.
+
+**Final automated verification:** GitHub Actions passed **111 tests in 2.95 seconds** on November 5, 2026: [run #41997048543](https://github.com/luqmanbuttcs/dsa-project/actions/runs/41997048543).
+
+**Still required on the project owner's Windows machine:** visually inspect the board at 1600×900 and 1280×800 with the actual screen scaling; physically drag cards through legal and invalid targets; check clipping, mouse feel, and animation smoothness. These checks are documented but are not claimed as completed by CI.
