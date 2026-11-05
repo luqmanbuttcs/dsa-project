@@ -172,14 +172,13 @@ class CardButton(QPushButton):
     def dragEnterEvent(self, event) -> None:
         payload = self._drag_payload(event)
         if payload and payload[1] != self.pile_id:
-            self.set_drag_highlight(True)
             event.setDropAction(Qt.DropAction.MoveAction)
             event.accept()
             return
         event.ignore()
 
     def dragLeaveEvent(self, event) -> None:
-        self.set_drag_highlight(False)
+        # Legal targets remain highlighted for the entire drag session.
         event.accept()
 
     def dropEvent(self, event) -> None:
