@@ -181,13 +181,27 @@ class DSAMonitorPanel(QWidget):
 
         events = tracker.events
         if events:
-            latest = events[-1]
+            # Internal snapshot-stack maintenance uses HISTORY context. Show
+            # the most recent player/setup operation group as the latest action
+            # while keeping every low-level event in the History tab.
+            latest_user_event = next(
+                (event for event in reversed(events) if event.context != "HISTORY"),
+                events[-1],
+            )
+            action_events = tracker.events_for_action(latest_user_event.action_id)
+            latest = action_events[-1] if action_events else latest_user_event
+            recent_steps = "\\n".join(
+                f"  {event.structure.value}: {event.operation}"
+                for event in action_events[-8:]
+            )
             self.latest_operation.setText(
-                "LATEST OPERATION\n"
-                f"#{latest.sequence} · {latest.structure.value} / {latest.operation}\n"
+                "LATEST OPERATION GROUP\n"
                 f"Action: {latest.action_id}   Context: {latest.context}\n"
+                f"{len(action_events)} recorded steps; final step: "
+                f"{latest.structure.value} / {latest.operation}\n"
                 f"Pile: {latest.pile_id or 'game'}   Cards: "
-                f"{', '.join(latest.card_ids) if latest.card_ids else '—'}"
+                f"{', '.join(latest.card_ids) if latest.card_ids else '—'}\n"
+                f"{recent_steps}"
             )
         else:
             self.latest_operation.setText(
