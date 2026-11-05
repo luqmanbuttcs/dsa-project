@@ -357,6 +357,7 @@ class MainWindow(QMainWindow):
             self._set_status(f"Stock draw mode set to Draw {count}.")
 
     def _draw_stock(self) -> None:
+        stock_visual = self._capture_widget_visual(self.stock_button)
         try:
             drawn = self.engine.draw_from_stock()
         except NoCardsAvailableError as error:
@@ -370,6 +371,8 @@ class MainWindow(QMainWindow):
         self._clear_selection()
         self._set_status(f"Drew {len(drawn)} card(s). Select the top waste card to move it.")
         self._refresh_board()
+        if drawn and stock_visual is not None:
+            self._animate_move_visuals({drawn[-1].card_id: stock_visual})
 
     def _card_selected(self, card_id: str, pile_id: str) -> None:
         if pile_id.startswith("foundation-"):
@@ -386,6 +389,9 @@ class MainWindow(QMainWindow):
             self._select_card(card_id, pile_id)
             return
 
+        move_visuals, flip_visual = self._capture_move_visuals(
+            self._selected_card_id, self._selected_pile_id
+        )
         try:
             if self._selected_pile_id == "waste":
                 self.engine.move_waste_to_tableau(pile_id)
@@ -404,6 +410,7 @@ class MainWindow(QMainWindow):
         self._clear_selection()
         self._set_status("Move completed.")
         self._refresh_board()
+        self._animate_transitions(move_visuals, flip_visual)
 
     def _select_card(self, card_id: str, pile_id: str) -> None:
         self._selected_card_id = card_id
@@ -415,6 +422,9 @@ class MainWindow(QMainWindow):
         if self._selected_card_id is None:
             self._set_status("Select a King-led face-up sequence first.", error=True)
             return
+        move_visuals, flip_visual = self._capture_move_visuals(
+            self._selected_card_id, self._selected_pile_id
+        )
         if self._selected_pile_id == "waste":
             try:
                 self.engine.move_waste_to_tableau(column_id)
@@ -437,12 +447,16 @@ class MainWindow(QMainWindow):
         self._clear_selection()
         self._set_status("Move completed.")
         self._refresh_board()
+        self._animate_transitions(move_visuals, flip_visual)
 
     def _foundation_selected(self, suit: Suit) -> None:
         if self._selected_card_id is None or self._selected_pile_id is None:
             self._set_status(f"Select a card to place on the {suit.value} foundation.")
             return
 
+        move_visuals, flip_visual = self._capture_move_visuals(
+            self._selected_card_id, self._selected_pile_id
+        )
         try:
             if self._selected_pile_id == "waste":
                 self.engine.move_waste_to_foundation(suit)
@@ -469,6 +483,7 @@ class MainWindow(QMainWindow):
         else:
             self._set_status(f"Card placed on the {suit.value} foundation.")
         self._refresh_board()
+        self._animate_transitions(move_visuals, flip_visual)
 
     def _undo(self) -> None:
         if not self.engine.undo():
