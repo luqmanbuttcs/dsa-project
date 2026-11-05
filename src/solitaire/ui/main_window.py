@@ -504,12 +504,15 @@ class MainWindow(QMainWindow):
             self._set_status(f"Stock draw mode set to Draw {count}.")
 
     def _draw_stock(self) -> None:
+        print("TRACE stock: entered", flush=True)
         stock_visual = (
             self._capture_widget_visual(self.stock_button)
             if self.isVisible() else None
         )
+        print("TRACE stock: visual captured", flush=True)
         try:
             drawn = self.engine.draw_from_stock()
+            print("TRACE stock: engine draw complete", flush=True)
         except NoCardsAvailableError as error:
             self._set_status(str(error), error=True)
             return
@@ -518,13 +521,17 @@ class MainWindow(QMainWindow):
             return
 
         self._mark_player_action()
+        print("TRACE stock: clock marked", flush=True)
         self._clear_selection()
         self._set_status(f"Drew {len(drawn)} card(s). Select the top waste card to move it.")
+        print("TRACE stock: status set", flush=True)
         self._refresh_board()
+        print("TRACE stock: board refreshed", flush=True)
         if drawn and stock_visual is not None:
             self._animate_move_visuals(
                 {card.card_id: stock_visual for card in drawn}
             )
+        print("TRACE stock: finished", flush=True)
 
     def _card_selected(self, card_id: str, pile_id: str) -> None:
         if pile_id.startswith("foundation-"):
