@@ -421,6 +421,27 @@ class MainWindow(QMainWindow):
         )
         controls.addWidget(self.reduce_motion_check)
         controls.addStretch(1)
+
+        # Keep secondary actions in the reference-style Settings menu.
+        settings_menu = QMenu(self.settings_button)
+        draw_one_action = settings_menu.addAction("Draw 1")
+        draw_one_action.triggered.connect(lambda: self.draw_mode_combo.setCurrentIndex(0))
+        draw_three_action = settings_menu.addAction("Draw 3")
+        draw_three_action.triggered.connect(lambda: self.draw_mode_combo.setCurrentIndex(1))
+        settings_menu.addSeparator()
+        self.reduce_motion_action = QAction("Reduce Motion", self)
+        self.reduce_motion_action.setCheckable(True)
+        self.reduce_motion_action.toggled.connect(self.reduce_motion_check.setChecked)
+        self.reduce_motion_check.toggled.connect(self.reduce_motion_action.setChecked)
+        settings_menu.addAction(self.reduce_motion_action)
+        settings_menu.addSeparator()
+        new_game_action = settings_menu.addAction("New Game")
+        new_game_action.triggered.connect(self._new_game)
+        self.dsa_monitor_action = settings_menu.addAction("Show DSA Monitor")
+        self.dsa_monitor_action.setCheckable(True)
+        self.dsa_monitor_action.setChecked(True)
+        self.settings_button.setMenu(settings_menu)
+
         root.addWidget(controls_panel)
 
     @staticmethod
