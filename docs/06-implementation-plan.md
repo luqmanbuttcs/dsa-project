@@ -250,10 +250,9 @@ Completed and covered by automated tests:
 - Automatic exposed-card flipping and win detection.
 - Structured DSA operation events for setup and implemented game actions.
 
-GitHub Actions reports **51 passing tests** on the current implementation branch.
+GitHub Actions reports **64 passing tests** on the current implementation branch.
 
 Still pending:
-- Undo/Redo stacks and reversible action records.
 - PyQt6 board, card widgets, drag/drop, and animation.
 - Live DSA monitor presentation, move log, and final UI/resizing/accessibility checks.
 - Optional Hint, timer/score behavior, and final demonstration preparation.
@@ -296,3 +295,21 @@ Latest confirmed CI result: **51 passed**.
 - Exposed cards flip face-up and the Dictionary index is refreshed after successful movement.
 
 **Validation:** GitHub Actions reports **58 passing tests** for the current phase implementation. The PyQt6 UI and Undo/Redo remain later milestones.
+
+
+## 9. Phase 3 — Game Logic implementation status
+
+**Completed on `feat/core-data-structures`:**
+
+- Existing `RuleValidator` and `GameEngine` validate tableau and foundation actions before mutation.
+- Stock supports Draw 1 / Draw 3 through the FIFO Queue, including waste recycling.
+- Newly exposed tableau cards are flipped face-up and their Dictionary locations are refreshed.
+- A frozen `GameSnapshot` captures card IDs by zone/pile, exact pile order, each card's face state, draw mode, status, move count, elapsed time, score, and player move history.
+- The custom `undo_stack` and `redo_stack` hold snapshots. Undo/redo rebuild zones through the project's actual Stack and Queue methods and restore linked-list-backed tableau columns.
+- Undo also works after a win; redo can restore the WON state.
+- A new successful move after undo clears the redo branch. Failed moves do not create undo entries.
+- The operation log remains append-only. Undo and redo emit their own action contexts; internal history-stack maintenance is recorded separately so it does not pollute a player's move-level trace.
+
+**Verification:** GitHub Actions completed with **64 passing tests**. New coverage includes tableau move/flip round trips, Draw 3 order and face state, stock recycle round trips, foundation movement, redo invalidation, and empty-history behavior.
+
+**Still pending:** PyQt6 desktop interface, card interaction/animations, visible DSA monitor, final UI smoke tests, and optional enhancements.
