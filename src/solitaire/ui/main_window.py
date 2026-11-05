@@ -359,7 +359,8 @@ class MainWindow(QMainWindow):
         log_layout.addWidget(self.move_log)
         board_footer.addWidget(log_panel, 3)
 
-        feedback_panel = QFrame()
+        self.feedback_panel = QFrame()
+        feedback_panel = self.feedback_panel
         feedback_panel.setObjectName("feedback-panel")
         feedback_panel.setMinimumWidth(210)
         feedback_panel.setStyleSheet(
@@ -509,15 +510,12 @@ class MainWindow(QMainWindow):
             self._set_status(f"Stock draw mode set to Draw {count}.")
 
     def _draw_stock(self) -> None:
-        print("TRACE: entered _draw_stock", flush=True)
         stock_visual = (
             self._capture_widget_visual(self.stock_button)
             if self.isVisible() else None
         )
-        print("TRACE: snapshot step finished", flush=True)
         try:
             drawn = self.engine.draw_from_stock()
-            print("TRACE: engine draw finished", flush=True)
         except NoCardsAvailableError as error:
             self._set_status(str(error), error=True)
             return
@@ -526,12 +524,9 @@ class MainWindow(QMainWindow):
             return
 
         self._mark_player_action()
-        print("TRACE: clock step finished", flush=True)
         self._clear_selection()
         self._set_status(f"Drew {len(drawn)} card(s). Select the top waste card to move it.")
-        print("TRACE: status step finished", flush=True)
         self._refresh_board()
-        print("TRACE: board refresh finished", flush=True)
         if drawn and stock_visual is not None:
             self._animate_move_visuals(
                 {card.card_id: stock_visual for card in drawn}
