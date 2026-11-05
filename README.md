@@ -33,7 +33,7 @@ The six project documents are maintained in [docs/](docs/):
 - [x] Win detection only when all four foundations contain complete, correctly ordered Ace-to-King suit sequences (52 cards total).
 - [x] Undo and redo using two custom Stack history piles and complete logical game snapshots.
 - [x] Structured DSA operation tracker for setup and game actions.
-- [x] Unit tests and GitHub Actions CI (64 tests passing on the current branch).
+- [x] Unit tests and GitHub Actions CI (67 tests passing on the current branch).
 
 ### Still to implement
 - [ ] Full PyQt6 desktop interface.
@@ -81,7 +81,7 @@ The instructor's Card and Deck phase and Tableau and Foundation phase are implem
 - Move validation rejects illegal tableau and foundation moves before changing piles.
 - Draw 1 / Draw 3 uses the FIFO stock Queue; recycling waste is treated as one atomic player action.
 - Newly exposed tableau cards flip face-up and the Dictionary is refreshed.
-- Undo restores pile order, stock/waste order, card face states, move history, counters, draw mode, and win status.
+- Undo restores pile order, stock/waste order, card face states, move history, move count, score, and win status while preserving elapsed time and the current Draw 1 / Draw 3 preference.
 - Redo reapplies the saved state; a new successful action clears the redo branch.
 - Undo/redo restoration uses the custom Stack, Queue, Linked List, and Dictionary-backed model. Operation events remain append-only and identify PLAY, UNDO, REDO, and HISTORY contexts.
 
