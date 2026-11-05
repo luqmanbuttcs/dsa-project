@@ -517,7 +517,9 @@ class MainWindow(QMainWindow):
         self._mark_player_action()
         self._clear_selection()
         self._set_status(f"Drew {len(drawn)} card(s). Select the top waste card to move it.")
-        self._refresh_board()
+        # DEBUG ISOLATION: skip all widget rebuilding during stock draw.
+        if False:
+            self._refresh_board()
         if drawn and stock_visual is not None:
             self._animate_move_visuals(
                 {card.card_id: stock_visual for card in drawn}
