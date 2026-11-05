@@ -10,6 +10,7 @@ from uuid import uuid4
 from solitaire.domain.card import Card, Suit
 from solitaire.domain.deck import DeckFactory
 from solitaire.domain.operations import OperationTracker, StructureName
+from solitaire.structures.linked_list import LinkedList, LinkedListNode
 from solitaire.structures.queue import Queue
 from solitaire.structures.stack import Stack
 
@@ -58,7 +59,26 @@ class TableauColumn:
         return self.stack.is_empty()
 
     def cards_bottom_to_top(self) -> list[Card]:
+        """Return the tableau cards from bottom to top."""
         return self.stack.to_list()
+
+    @property
+    def linked_list(self) -> LinkedList[Card]:
+        """Expose the canonical node chain used by this tableau pile."""
+        return self.stack.linked_list
+
+    def detach_run_from(self, start_index: int) -> LinkedList[Card]:
+        """Detach a face-up suffix beginning at start_index, preserving nodes."""
+        linked = self.stack.linked_list
+        first_node: LinkedListNode[Card] = linked.node_at(start_index)
+        last_node = linked.tail
+        if last_node is None:
+            raise IndexError("cannot detach a run from an empty tableau column")
+        return self.stack.detach_run(first_node, last_node)
+
+    def attach_run(self, run: LinkedList[Card]) -> None:
+        """Attach a detached sequence to the top of this tableau column."""
+        self.stack.attach_run(run)
 
 
 @dataclass(slots=True)
