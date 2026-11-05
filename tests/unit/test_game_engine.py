@@ -13,34 +13,40 @@ from solitaire.structures.stack import Stack
 
 def arranged_move_state(
     destination_card_id: str = "C-9",
-    source_card_id: str = "H-8",
+    source_run_ids: tuple[str, ...] = ("H-8",),
 ) -> GameState:
-    """Build a deterministic 8H tableau move with a hidden source card."""
+    """Build a deterministic tableau move fixture with hidden source cards."""
     cards = {card.card_id: card for card in DeckFactory.create_standard_deck()}
-    source_card = cards.pop(source_card_id)
+    source_run = [cards.pop(card_id) for card_id in source_run_ids]
     destination_card = cards.pop(destination_card_id)
 
     counts = [5, 5, 4, 4, 4, 3, 3]
+    if len(source_run) > counts[0]:
+        raise ValueError("Source run is larger than its tableau column")
     tableau = {}
 
     for column_number, count in enumerate(counts, start=1):
         column_id = f"tableau-{column_number}"
         column = TableauColumn(column_id=column_id)
+        hidden_count = count - len(source_run) if column_number == 1 else count - 1
 
-        for _ in range(count - 1):
+        for _ in range(hidden_count):
             card = cards.pop(next(iter(cards)))
             card.turn_face_down()
             column.push(card)
 
         if column_number == 1:
-            top = source_card
+            for card in source_run:
+                card.turn_face_up()
+                column.push(card)
         elif column_number == 2:
-            top = destination_card
+            destination_card.turn_face_up()
+            column.push(destination_card)
         else:
             top = cards.pop(next(iter(cards)))
+            top.turn_face_up()
+            column.push(top)
 
-        top.turn_face_up()
-        column.push(top)
         tableau[column_id] = column
 
     stock = Queue()
@@ -429,3 +435,30 @@ def test_victory_is_false_when_foundation_order_is_corrupted():
         pass
     else:
         raise AssertionError("Expected corrupted foundation ordering to fail invariants")
+
+
+
+def test_tableau_move_transfers_entire_face_up_sequence_in_original_order():
+    state = arranged_move_state(
+        destination_card_id="S-10",
+        source_run_ids=("C-9", "H-8"),
+    )
+    engine = GameEngine(state)
+
+    source = state.tableau["tableau-1"]
+    destination = state.tableau["tableau-2"]
+    source_hidden_card = source.cards_bottom_to_top()[-3]
+
+    moved = engine.move_tableau_to_tableau(
+        "tableau-1", "C-9", "tableau-2"
+    )
+
+    assert [card.card_id for card in moved] == ["C-9", "H-8"]
+    assert [card.card_id for card in destination.cards_bottom_to_top()[-2:]] == [
+        "C-9", "H-8"
+    ]
+    assert source.peek() is source_hidden_card
+    assert source.peek().face_up
+    assert state.card_index["C-9"].pile_id == "tableau-2"
+    assert state.card_index["H-8"].pile_id == "tableau-2"
+    state.assert_invariants()
