@@ -520,3 +520,165 @@ def test_foundation_stack_accepts_ace_then_two_and_keeps_lifo_top():
     assert state.card_index["H-2"].zone is Zone.FOUNDATION
     assert state.card_index["H-2"].position == 1
     state.assert_invariants()
+
+
+
+def test_undo_redo_restores_tableau_move_card_flip_and_dictionary():
+    state = arranged_move_state()
+    engine = GameEngine(state)
+    source = state.tableau["tableau-1"]
+    destination = state.tableau["tableau-2"]
+    original_source_ids = [card.card_id for card in source.cards_bottom_to_top()]
+    original_destination_ids = [
+        card.card_id for card in destination.cards_bottom_to_top()
+    ]
+    original_index = dict(state.card_index)
+    exposed_card = source.cards_bottom_to_top()[-2]
+
+    engine.move_tableau_to_tableau("tableau-1", "H-8", "tableau-2")
+    assert engine.can_undo
+    assert not engine.can_redo
+    assert exposed_card.face_up
+
+    assert engine.undo()
+    assert [card.card_id for card in source.cards_bottom_to_top()] == original_source_ids
+    assert [
+        card.card_id for card in destination.cards_bottom_to_top()
+    ] == original_destination_ids
+    assert not exposed_card.face_up
+    assert state.card_index == original_index
+    assert state.move_count == 0
+    assert engine.move_history == []
+    assert not engine.can_undo
+    assert engine.can_redo
+    assert engine.tracker.events[-1].context == "UNDO"
+    assert engine.tracker.events[-1].operation == "UNDO_COMPLETE"
+    state.assert_invariants()
+
+    assert engine.redo()
+    assert source.peek() is exposed_card
+    assert exposed_card.face_up
+    assert destination.peek().card_id == "H-8"
+    assert state.move_count == 1
+    assert len(engine.move_history) == 1
+    assert engine.can_undo
+    assert not engine.can_redo
+    assert engine.tracker.events[-1].context == "REDO"
+    assert engine.tracker.events[-1].operation == "REDO_COMPLETE"
+    state.assert_invariants()
+
+
+def test_undo_redo_restores_draw_three_queue_order_and_face_states():
+    state = create_new_game(Random(901), draw_count=3)
+    engine = GameEngine(state)
+    original_stock_ids = [card.card_id for card in state.stock.to_list()]
+    original_index = dict(state.card_index)
+
+    drawn = engine.draw_from_stock()
+    after_draw_stock_ids = [card.card_id for card in state.stock.to_list()]
+    after_draw_waste_ids = [card.card_id for card in state.waste.to_list()]
+    after_draw_index = dict(state.card_index)
+
+    assert len(drawn) == 3
+    assert engine.undo()
+    assert [card.card_id for card in state.stock.to_list()] == original_stock_ids
+    assert state.waste.is_empty()
+    assert state.card_index == original_index
+    assert all(not card.face_up for card in state.stock.to_list())
+    assert state.move_count == 0
+    state.assert_invariants()
+
+    assert engine.redo()
+    assert [card.card_id for card in state.stock.to_list()] == after_draw_stock_ids
+    assert [card.card_id for card in state.waste.to_list()] == after_draw_waste_ids
+    assert state.card_index == after_draw_index
+    assert all(card.face_up for card in state.waste.to_list())
+    assert state.move_count == 1
+    state.assert_invariants()
+
+
+def test_undo_redo_restores_stock_recycle_as_one_atomic_action():
+    state = create_new_game(Random(902), draw_count=3)
+    engine = GameEngine(state)
+
+    while not state.stock.is_empty():
+        engine.draw_from_stock()
+
+    original_waste_ids = [card.card_id for card in state.waste.to_list()]
+    original_index = dict(state.card_index)
+    assert state.stock.is_empty()
+    assert len(original_waste_ids) == 24
+
+    engine.draw_from_stock(1)
+    after_stock_ids = [card.card_id for card in state.stock.to_list()]
+    after_waste_ids = [card.card_id for card in state.waste.to_list()]
+    after_index = dict(state.card_index)
+
+    assert engine.undo()
+    assert state.stock.is_empty()
+    assert [card.card_id for card in state.waste.to_list()] == original_waste_ids
+    assert state.card_index == original_index
+    assert all(card.face_up for card in state.waste.to_list())
+    state.assert_invariants()
+
+    assert engine.redo()
+    assert [card.card_id for card in state.stock.to_list()] == after_stock_ids
+    assert [card.card_id for card in state.waste.to_list()] == after_waste_ids
+    assert state.card_index == after_index
+    state.assert_invariants()
+
+
+def test_undo_redo_restores_tableau_to_foundation_and_exposed_card():
+    state = arranged_move_state(source_run_ids=("H-A",))
+    engine = GameEngine(state)
+    source = state.tableau["tableau-1"]
+    original_source_ids = [card.card_id for card in source.cards_bottom_to_top()]
+    exposed_card = source.cards_bottom_to_top()[-2]
+
+    engine.move_tableau_to_foundation("tableau-1", Suit.HEARTS)
+    assert state.foundations[Suit.HEARTS].peek().card_id == "H-A"
+    assert exposed_card.face_up
+
+    assert engine.undo()
+    assert [card.card_id for card in source.cards_bottom_to_top()] == original_source_ids
+    assert state.foundations[Suit.HEARTS].is_empty()
+    assert not exposed_card.face_up
+    assert state.card_index["H-A"].zone is Zone.TABLEAU
+    state.assert_invariants()
+
+    assert engine.redo()
+    assert source.peek() is exposed_card
+    assert exposed_card.face_up
+    assert state.foundations[Suit.HEARTS].peek().card_id == "H-A"
+    assert state.card_index["H-A"].zone is Zone.FOUNDATION
+    state.assert_invariants()
+
+
+def test_new_successful_action_after_undo_clears_redo_history():
+    state = arranged_move_state()
+    engine = GameEngine(state)
+
+    engine.move_tableau_to_tableau("tableau-1", "H-8", "tableau-2")
+    assert engine.undo()
+    assert engine.can_redo
+
+    engine.draw_from_stock(1)
+
+    assert not engine.can_redo
+    assert engine.can_undo
+    assert state.move_count == 1
+    state.assert_invariants()
+
+
+def test_empty_undo_and_redo_return_false_without_mutating_state():
+    state = create_new_game(Random(903))
+    engine = GameEngine(state)
+    original_index = dict(state.card_index)
+    original_stock_ids = [card.card_id for card in state.stock.to_list()]
+
+    assert not engine.undo()
+    assert not engine.redo()
+    assert state.card_index == original_index
+    assert [card.card_id for card in state.stock.to_list()] == original_stock_ids
+    assert state.move_count == 0
+    state.assert_invariants()
