@@ -11,7 +11,7 @@ from solitaire.structures.queue import Queue
 from solitaire.structures.stack import Stack
 
 
-def arranged_move_state(destination_card_id: str = "C-9") -> GameState:
+def arranged_move_state(\n    destination_card_id: str = "C-9",\n    source_card_id: str = "H-8",\n) -> GameState:
     """Build a deterministic 8H tableau move with a hidden source card."""
     cards = {card.card_id: card for card in DeckFactory.create_standard_deck()}
     eight_hearts = cards.pop("H-8")
@@ -186,4 +186,88 @@ def test_invalid_tableau_move_does_not_mutate_piles():
     assert state.card_index == before_index
     assert state.move_count == before_move_count
     assert engine.tracker.events[-1].outcome == "REJECTED"
+    state.assert_invariants()
+
+
+
+def move_card_from_stock_to_waste(state: GameState, card_id: str) -> Card:
+    """Test helper that relocates one stock card to waste and reindexes."""
+    stock_cards = state.stock.to_list()
+    selected = next(card for card in stock_cards if card.card_id == card_id)
+
+    state.stock = Queue()
+    for card in stock_cards:
+        if card.card_id != card_id:
+            state.stock.enqueue(card)
+
+    selected.turn_face_up()
+    state.waste.push(selected)
+
+    for position, card in enumerate(state.stock.to_list()):
+        state.card_index[card.card_id] = CardLocation(
+            Zone.STOCK, "stock", position, card.face_up
+        )
+    for position, card in enumerate(state.waste.to_list()):
+        state.card_index[card.card_id] = CardLocation(
+            Zone.WASTE, "waste", position, card.face_up
+        )
+    return selected
+
+
+def test_tableau_to_foundation_uses_stacks_and_updates_dictionary():
+    state = arranged_move_state(source_card_id="H-A")
+    engine = GameEngine(state)
+    source = state.tableau["tableau-1"]
+    newly_exposed = source.cards_bottom_to_top()[-2]
+
+    moved = engine.move_tableau_to_foundation("tableau-1", Suit.HEARTS)
+
+    assert moved.card_id == "H-A"
+    assert state.foundations[Suit.HEARTS].peek() is moved
+    assert source.peek() is newly_exposed
+    assert newly_exposed.face_up
+    assert state.card_index["H-A"].zone is Zone.FOUNDATION
+    assert state.card_index["H-A"].pile_id == "foundation-h"
+    assert state.card_index[newly_exposed.card_id].face_up
+    assert engine.tracker.count_operation(StructureName.STACK, "POP") == 1
+    assert engine.tracker.count_operation(StructureName.STACK, "PUSH") == 1
+    assert engine.tracker.count_operation(
+        StructureName.LINKED_LIST, "REMOVE_TOP_NODE"
+    ) == 1
+    state.assert_invariants()
+
+
+def test_waste_to_tableau_uses_stack_and_linked_list():
+    state = arranged_move_state()
+    selected = move_card_from_stock_to_waste(state, "D-8")
+    engine = GameEngine(state)
+
+    moved = engine.move_waste_to_tableau("tableau-2")
+
+    assert moved is selected
+    assert state.tableau["tableau-2"].peek() is selected
+    assert state.waste.is_empty()
+    location = state.card_index[selected.card_id]
+    assert location.zone is Zone.TABLEAU
+    assert location.pile_id == "tableau-2"
+    assert engine.tracker.count_operation(
+        StructureName.STACK, "POP"
+    ) == 1
+    assert engine.tracker.count_operation(
+        StructureName.LINKED_LIST, "APPEND_NODE"
+    ) == 1
+    state.assert_invariants()
+
+
+def test_waste_to_foundation_moves_ace_using_stacks():
+    state = arranged_move_state()
+    selected = move_card_from_stock_to_waste(state, "H-A")
+    engine = GameEngine(state)
+
+    moved = engine.move_waste_to_foundation(Suit.HEARTS)
+
+    assert moved is selected
+    assert state.waste.is_empty()
+    assert state.foundations[Suit.HEARTS].peek() is selected
+    assert state.card_index[selected.card_id].zone is Zone.FOUNDATION
     state.assert_invariants()
