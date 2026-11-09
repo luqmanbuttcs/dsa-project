@@ -20,7 +20,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from solitaire.ui.premium.dsa_lab.data_provider import recent_stack_events, stack_report_for_pile
+from solitaire.domain.card import Suit
+from solitaire.ui.premium.dsa_lab.data_provider import (
+    recent_stack_events,
+    stack_pile_composition,
+    stack_report_for_pile,
+)
 from solitaire.ui.premium.dsa_lab.widgets import (
     LiveBadge,
     MiniCardChip,
@@ -130,7 +135,40 @@ class StackInspector(QWidget):
         self._operations_table.horizontalHeader().setStyleSheet(
             "color: #E8C766; font-weight: bold; background: #13253D;"
         )
-        operations_column.addWidget(self._operations_table, 1)
+        operations_column.addWidget(self._operations_table, 0)
+
+        # Real suit/face composition of the selected pile — mirrors the Array
+        # page's suit chips and keeps the right column from ending in a void.
+        operations_column.addSpacing(8)
+        operations_column.addWidget(SectionTitle("Pile composition"))
+        composition_panel = QFrame()
+        composition_panel.setObjectName("panelCard")
+        composition_layout = QVBoxLayout(composition_panel)
+        composition_layout.setContentsMargins(12, 10, 12, 10)
+        composition_layout.setSpacing(8)
+        suits_row = QHBoxLayout()
+        self._composition_suits: dict[Suit, StatChip] = {
+            suit: StatChip(suit.name.title(), "0") for suit in Suit
+        }
+        for suit in Suit:
+            suits_row.addWidget(self._composition_suits[suit])
+        suits_row.addStretch(1)
+        composition_layout.addLayout(suits_row)
+        faces_row = QHBoxLayout()
+        self._face_up_stat = StatChip("Face up", "0")
+        self._face_down_stat = StatChip("Face down", "0")
+        faces_row.addWidget(self._face_up_stat)
+        faces_row.addWidget(self._face_down_stat)
+        faces_row.addStretch(1)
+        composition_layout.addLayout(faces_row)
+        self._composition_hint = QLabel("History piles hold move snapshots, not cards.")
+        self._composition_hint.setObjectName("mutedText")
+        self._composition_hint.setWordWrap(True)
+        self._composition_hint.setVisible(False)
+        composition_layout.addWidget(self._composition_hint)
+        operations_column.addWidget(composition_panel)
+        operations_column.addStretch(1)
+
         columns.addLayout(operations_column, 2)
 
         layout.addLayout(columns, 1)
@@ -188,6 +226,20 @@ class StackInspector(QWidget):
                 self._events_table.setItem(row, 2, QTableWidgetItem(cards_brief(event.card_ids)))
                 self._events_table.setItem(row, 3, QTableWidgetItem(event.context or "—"))
                 self._events_table.setRowHeight(row, 26)
+
+        composition = stack_pile_composition(self._game, pile_id)
+        if composition is None:
+            for stat in self._composition_suits.values():
+                stat.set_value("0")
+            self._face_up_stat.set_value("0")
+            self._face_down_stat.set_value("0")
+            self._composition_hint.setVisible(True)
+        else:
+            for suit in Suit:
+                self._composition_suits[suit].set_value(str(composition.suit_counts[suit]))
+            self._face_up_stat.set_value(str(composition.face_up))
+            self._face_down_stat.set_value(str(composition.face_down))
+            self._composition_hint.setVisible(False)
 
         operations = sorted(report.operations.items())
         self._operations_table.setRowCount(max(1, len(operations)))

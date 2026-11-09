@@ -22,12 +22,14 @@ from solitaire.ui.premium.dsa_lab.data_provider import (
     game_stats,
     latest_operation,
     queue_report,
+    stack_pile_composition,
     stack_report_for_pile,
     structure_counts,
     timeline_rows,
 )
 from solitaire.ui.premium.main_window import PremiumMainWindow
 from solitaire.ui.premium.navigation import LabPage, Workspace
+from solitaire.domain.card import Suit
 from solitaire.domain.operations import StructureName
 from solitaire.ui.premium.theme import (
     CARD_H,
@@ -263,6 +265,29 @@ def test_stack_report_matches_live_waste(window):
     assert report.size == 1
     assert report.top_card_id == window.game.state.waste.peek().card_id
     assert report.order_bottom_to_top == (report.top_card_id,)
+
+
+def test_stack_pile_composition_derives_from_real_piles(window):
+    window.game.draw_from_stock()
+
+    waste = stack_pile_composition(window.game, "waste")
+    assert waste is not None
+    assert waste.total == window.game.state.waste.size() == 1
+    assert sum(waste.suit_counts.values()) == waste.total
+    top = window.game.state.waste.peek().card_id
+    top_suit = next(suit for suit in Suit if suit.code == top.split("-")[0])
+    assert waste.suit_counts[top_suit] == 1
+    assert waste.face_up == 1 and waste.face_down == 0
+
+    # Tableau piles carry real face-down counts (one per face-down card).
+    tableau = stack_pile_composition(window.game, "tableau-5")
+    assert tableau is not None
+    assert tableau.total == window.game.state.tableau["tableau-5"].size()
+    assert tableau.face_up + tableau.face_down == tableau.total
+    assert tableau.face_down >= 1
+
+    # History piles hold snapshots, not cards — no composition.
+    assert stack_pile_composition(window.game, "undo-history") is None
 
 
 def test_array_report_counts_real_deal_events(window):

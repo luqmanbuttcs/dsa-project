@@ -193,6 +193,43 @@ def recent_linked_list_events(
     return events[-limit:]
 
 
+@dataclass(frozen=True)
+class StackPileComposition:
+    """Real suit/face composition of one card pile."""
+
+    total: int
+    suit_counts: dict[Suit, int]
+    face_up: int
+    face_down: int
+
+
+def stack_pile_composition(game, pile_id: str) -> StackPileComposition | None:
+    """Derive a pile's suit and face-up composition from the real state.
+
+    Returns ``None`` for the undo/redo history piles, which hold move
+    snapshots rather than cards.
+    """
+    state = game.state
+    if pile_id == "waste":
+        cards = state.waste.to_list()
+    elif pile_id.startswith("tableau-"):
+        cards = state.tableau[pile_id].cards_bottom_to_top()
+    elif pile_id.startswith("foundation-"):
+        cards = state.foundations[_suit_for_pile(pile_id)].to_list()
+    else:
+        return None
+
+    suit_counts = {suit: 0 for suit in Suit}
+    face_up = face_down = 0
+    for card in cards:
+        suit_counts[card.suit] += 1
+        if state.card_index[card.card_id].face_up:
+            face_up += 1
+        else:
+            face_down += 1
+    return StackPileComposition(len(cards), suit_counts, face_up, face_down)
+
+
 # --- queue ------------------------------------------------------------------------
 
 
@@ -207,7 +244,7 @@ class QueueReport:
     recycle_events: int
 
 
-def recent_queue_events(tracker: OperationTracker, limit: int = 6) -> list[OperationEvent]:
+def recent_queue_events(tracker: OperationTracker, limit: int = 8) -> list[OperationEvent]:
     """The latest QUEUE-structure events, oldest first, at most `limit`."""
     events = [event for event in tracker.events if event.structure is StructureName.QUEUE]
     return events[-limit:]
