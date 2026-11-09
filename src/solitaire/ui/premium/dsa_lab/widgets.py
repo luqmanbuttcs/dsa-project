@@ -19,6 +19,26 @@ def card_text(card_id: str) -> str:
     return f"{rank_label}{symbol}"
 
 
+def clear_layout(layout) -> None:
+    """Remove every widget/layout from `layout` *immediately*.
+
+    `deleteLater()` alone leaves the old widgets alive (and visible at their
+    stale geometry) until the event loop spins — a refreshed strip then
+    paints on top of a ghost of the previous one. Hiding and re-parenting to
+    ``None`` removes them from the screen synchronously; the deferred delete
+    still reclaims the memory.
+    """
+    while layout.count():
+        item = layout.takeAt(0)
+        widget = item.widget()
+        if widget is not None:
+            widget.hide()
+            widget.setParent(None)
+            widget.deleteLater()
+        elif item.layout() is not None:
+            clear_layout(item.layout())
+
+
 def card_color(card_id: str) -> str:
     suit_code = card_id.split("-", 1)[0] if "-" in card_id else ""
     return "#D24343" if suit_code in ("H", "D") else "#1B1E26"

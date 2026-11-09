@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from solitaire.ui.premium.components.common.icons import icon_pixmap
-from solitaire.ui.premium.controllers.game_controller import GameController
+from solitaire.ui.premium.controllers.game_controller import GameController, describe_move
 from solitaire.ui.premium.dsa_lab.data_provider import latest_player_operation, structure_counts
 from solitaire.ui.premium.navigation import LabPage
 from solitaire.ui.premium.theme import DASHBOARD_WIDTH
@@ -292,7 +292,9 @@ class DsaDashboard(QScrollArea):
             if index < len(events):
                 event = events[index]
                 kind = "error" if event.action_type == "MOVE_REJECTED" else "success"
-                row.set_data(event.description, clock_text, kind)
+                # Same player-facing notation as the Move Log ('Spades
+                # Foundation', 'Column 4') so panels never contradict each other.
+                row.set_data(describe_move(event), clock_text, kind)
                 row.setVisible(True)
             else:
                 row.setVisible(False)

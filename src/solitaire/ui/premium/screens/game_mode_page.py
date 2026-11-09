@@ -222,6 +222,45 @@ class GameModePage(QWidget):
         motion_layout.addLayout(speed_row)
         body.addWidget(motion_frame)
 
+        # --- controls & shortcuts ------------------------------------------------
+        controls_frame = QFrame()
+        controls_frame.setObjectName("panelCard")
+        controls_layout = QVBoxLayout(controls_frame)
+        controls_layout.setContentsMargins(16, 14, 16, 14)
+        controls_layout.setSpacing(10)
+
+        controls_title = QLabel("Controls & shortcuts")
+        controls_title.setStyleSheet(
+            "color: #E8C766; font-weight: bold; font-size: 14px; background: transparent;"
+        )
+        controls_layout.addWidget(controls_title)
+
+        shortcuts = (
+            ("H", "Show a hint for the next best move"),
+            ("Space", "Draw from the Stock to the Waste"),
+            ("Ctrl+Z", "Undo the last move"),
+            ("Ctrl+Y", "Redo an undone move"),
+            ("Ctrl+N", "Deal a new game (asks for confirmation)"),
+            ("Drag / Click", "Move cards — click a face-up card to select its run"),
+        )
+        for key, action in shortcuts:
+            row = QHBoxLayout()
+            row.setSpacing(12)
+            key_chip = QLabel(key)
+            key_chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            key_chip.setFixedWidth(110)
+            key_chip.setStyleSheet(
+                "color: #F0C75E; font-weight: bold; font-size: 12px;"
+                "border: 1px solid #C9A227; border-radius: 6px; padding: 3px 8px;"
+                "background: rgba(212, 175, 55, 0.10);"
+            )
+            action_label = QLabel(action)
+            action_label.setStyleSheet("color: #F2EEE2; font-size: 12px; background: transparent;")
+            row.addWidget(key_chip, 0, Qt.AlignmentFlag.AlignVCenter)
+            row.addWidget(action_label, 1, Qt.AlignmentFlag.AlignVCenter)
+            controls_layout.addLayout(row)
+        body.addWidget(controls_frame)
+
         body.addStretch(1)
 
         # --- actions ------------------------------------------------------------

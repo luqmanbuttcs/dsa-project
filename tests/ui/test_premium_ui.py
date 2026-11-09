@@ -566,3 +566,107 @@ def test_game_mode_page_applies_draw_mode_and_motion_settings(window):
 
     window._close_game_mode()
     assert window.workspaces.currentIndex() == 0
+
+
+# --- visual polish pass regression tests ---------------------------------------------------
+
+def test_new_game_resets_feedback_panel_to_idle(window):
+    """Regression: a fresh table must not inherit the previous game's
+    success card — the panel returns to its quiet idle state."""
+    panel = window.play_workspace.feedback_panel
+
+    window.game.draw_from_stock()
+    assert panel.state in ("success", "info", "error")
+
+    window.game.new_game(draw_count=1, announce=False)
+    assert panel.state == "idle"
+    assert panel._title_label.text() == "Ready"
+
+
+def test_latest_operation_skips_dictionary_index_updates(window):
+    """Regression: passive Dictionary bookkeeping must never shadow the
+    player's actual action in the dashboard's Latest Operation panel."""
+    from solitaire.domain.operations import StructureName
+
+    window.game.draw_from_stock()
+
+    from solitaire.ui.premium.dsa_lab.data_provider import latest_player_operation
+
+    latest = latest_player_operation(window.game.tracker)
+    assert latest is not None
+    assert latest.structure is not StructureName.DICTIONARY
+
+    dashboard = window.play_workspace.dashboard
+    dashboard.refresh()
+    assert "Card index updated" not in dashboard._latest_body.text()
+
+
+def test_queue_strip_refresh_leaves_no_stale_widgets(window):
+    """Regression: rebuilding the FIFO strip must remove the previous
+    widgets from the screen immediately, not leave deleteLater ghosts that
+    paint the old strip underneath the new one."""
+    from solitaire.ui.premium.dsa_lab.queue_inspector import QueueInspector
+    from solitaire.ui.premium.dsa_lab.widgets import MiniCardChip
+
+    inspector = window.dsa_lab._pages[LabPage.QUEUE]
+    assert isinstance(inspector, QueueInspector)
+
+    inspector.refresh()
+    window.game.draw_from_stock()
+    inspector.refresh()
+
+    chips = inspector._order_panel.findChildren(MiniCardChip)
+    expected = len(queue_report(window.game).fifo_order)
+    assert len(chips) == expected
+
+
+def test_timeline_rows_use_player_friendly_pile_labels(window):
+    """Regression: the Recent Player Moves timeline must speak the same
+    notation as the Move Log ('Spades Foundation'), not raw pile ids."""
+    hints = [
+        h
+        for h in window.game.engine.find_hints()
+        if h.destination_pile and h.destination_pile.startswith("foundation-")
+    ]
+    if not hints:
+        window.game.draw_from_stock()
+        hints = [
+            h
+            for h in window.game.engine.find_hints()
+            if h.destination_pile and h.destination_pile.startswith("foundation-")
+        ]
+    if hints:
+        hint = hints[0]
+        window.game.try_move(hint.source_pile, hint.card_ids[0], hint.destination_pile)
+
+    dashboard = window.play_workspace.dashboard
+    dashboard.refresh()
+    texts = [row._text for row in dashboard._history_rows if row.isVisible()]
+    assert texts
+    for text in texts:
+        assert "foundation-" not in text
+        assert "tableau-" not in text
+
+
+def test_stack_operations_placeholder_row_is_not_clipped(window):
+    """Regression: the empty-operations placeholder row reserves enough
+    height to show the whole sentence instead of an ellipsis."""
+    inspector = window.dsa_lab._pages[LabPage.STACK]
+    inspector._pile_selector.setCurrentIndex(
+        inspector._pile_selector.findData("foundation-h")
+    )
+    inspector.refresh()
+
+    assert inspector._operations_table.rowCount() >= 1
+    assert inspector._operations_table.rowHeight(0) >= 40
+
+
+def test_linked_list_page_defaults_to_the_deepest_column(window):
+    """Regression: the node diagram should open on a real chain (the deepest
+    tableau column), not a single-node column."""
+    inspector = window.dsa_lab._pages[LabPage.LINKED_LIST]
+    sizes = [
+        window.game.state.tableau[f"tableau-{index}"].size() for index in range(1, 8)
+    ]
+    expected = sizes.index(max(sizes))
+    assert inspector._column_selector.currentIndex() == expected

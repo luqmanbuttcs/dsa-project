@@ -46,14 +46,22 @@ def latest_operation(tracker: OperationTracker) -> OperationEvent | None:
 def latest_player_operation(tracker: OperationTracker) -> OperationEvent | None:
     """The most recent *player-facing* event.
 
-    Internal bookkeeping (UNDO / REDO / HISTORY contexts that restore piles
-    node by node) is real tracker data but is not what a player did. The
-    dashboard surfaces this view; the DSA Lab timeline still shows every
-    event.
+    Two kinds of real tracker data are deliberately not surfaced here:
+
+    * UNDO / REDO / HISTORY-context events that restore piles node by node
+      (bookkeeping, not what the player did);
+    * Dictionary SET/UPDATE events, which mirror every other operation into
+      the card-location index and would otherwise shadow the actual action
+      (e.g. a Stock draw) with 'Card index updated' noise.
+
+    The DSA Lab timeline still shows every event.
     """
     for event in reversed(tracker.events):
-        if event.context == "PLAY":
-            return event
+        if event.context != "PLAY":
+            continue
+        if event.structure is StructureName.DICTIONARY:
+            continue
+        return event
     return None
 
 
@@ -173,6 +181,12 @@ class QueueReport:
     enqueue_count: int
     dequeue_count: int
     recycle_events: int
+
+
+def recent_queue_events(tracker: OperationTracker, limit: int = 6) -> list[OperationEvent]:
+    """The latest QUEUE-structure events, oldest first, at most `limit`."""
+    events = [event for event in tracker.events if event.structure is StructureName.QUEUE]
+    return events[-limit:]
 
 
 def queue_report(game) -> QueueReport:

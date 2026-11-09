@@ -49,6 +49,20 @@ def pretty_pile(pile_id: str) -> str:
     return PILE_LABELS.get(pile_id, pile_id)
 
 
+def describe_move(event) -> str:
+    """Compact readable notation for a move-history event.
+
+    Replaces raw pile identifiers ('tableau-4', 'foundation-s') with the
+    player-facing labels used by the Move Log, so every panel in the UI
+    speaks the same notation ('Column 4', 'Spades Foundation').
+    """
+    description = event.description
+    for pile_id in (getattr(event, "source_pile", None), getattr(event, "destination_pile", None)):
+        if pile_id:
+            description = description.replace(pile_id, pretty_pile(pile_id))
+    return description
+
+
 def foundation_suit_for(pile_id: str) -> Suit:
     """Map 'foundation-h' to Suit.HEARTS."""
     code = pile_id.rsplit("-", 1)[1].upper()

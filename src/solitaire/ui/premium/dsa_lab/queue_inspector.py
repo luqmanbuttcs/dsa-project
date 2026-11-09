@@ -6,22 +6,25 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from solitaire.ui.premium.dsa_lab.data_provider import queue_report
-from solitaire.ui.premium.dsa_lab.widgets import LiveBadge, MiniCardChip, PileTag, SectionTitle, StatChip
-
-
-def _clear_strip(strip_layout) -> None:
-    while strip_layout.count():
-        item = strip_layout.takeAt(0)
-        widget = item.widget()
-        if widget is not None:
-            widget.deleteLater()
+from solitaire.ui.premium.dsa_lab.data_provider import queue_report, recent_queue_events
+from solitaire.ui.premium.dsa_lab.widgets import (
+    LiveBadge,
+    MiniCardChip,
+    PileTag,
+    SectionTitle,
+    StatChip,
+    clear_layout,
+)
+from solitaire.ui.premium.dsa_lab.widgets import card_text
 
 
 class QueueInspector(QWidget):
@@ -77,9 +80,27 @@ class QueueInspector(QWidget):
         order_scroll.setFixedHeight(120)
         order_scroll.setWidget(order_panel)
         layout.addWidget(order_scroll)
-        layout.addStretch(1)
 
         self._order_panel = order_panel
+
+        # --- recent queue operations (fills the lower half with real data) ----
+        layout.addWidget(SectionTitle("Recent queue operations"))
+        self._ops_table = QTableWidget(0, 4)
+        self._ops_table.setHorizontalHeaderLabels(["Seq", "Operation", "Card", "Pile"])
+        self._ops_table.verticalHeader().setVisible(False)
+        self._ops_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._ops_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._ops_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._ops_table.horizontalHeader().setStretchLastSection(True)
+        self._ops_table.horizontalHeader().setStyleSheet(
+            "color: #E8C766; font-weight: bold; background: #13253D;"
+        )
+        self._ops_table.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._ops_table.setAlternatingRowColors(True)
+        self._ops_table.setStyleSheet("QTableWidget { background: #0D1B2E; alternate-background-color: #10203A; }")
+        layout.addWidget(self._ops_table, 1)
 
     def refresh(self) -> None:
         report = queue_report(self._game)
@@ -90,7 +111,7 @@ class QueueInspector(QWidget):
         self._dequeue_stat.set_value(str(report.dequeue_count))
         self._recycle_stat.set_value(str(report.recycle_events))
 
-        _clear_strip(self._order_strip)
+        clear_layout(self._order_strip)
 
         if report.fifo_order:
             front_tag = PileTag("FRONT (next draw)")
@@ -107,3 +128,19 @@ class QueueInspector(QWidget):
             empty.setObjectName("mutedText")
             self._order_strip.addWidget(empty)
         self._order_strip.addStretch(1)
+
+        events = recent_queue_events(self._game.tracker)
+        self._ops_table.setRowCount(len(events))
+        for row, event in enumerate(events):
+            self._ops_table.setItem(row, 0, QTableWidgetItem(str(event.sequence)))
+            self._ops_table.setItem(row, 1, QTableWidgetItem(event.operation))
+            self._ops_table.setItem(
+                row, 2, QTableWidgetItem(card_text(event.card_ids[0]) if event.card_ids else "—")
+            )
+            self._ops_table.setItem(row, 3, QTableWidgetItem(event.pile_id or "—"))
+        if not events:
+            self._ops_table.setRowCount(1)
+            self._ops_table.setItem(0, 0, QTableWidgetItem("No queue operations yet"))
+            self._ops_table.setItem(0, 1, QTableWidgetItem("—"))
+            self._ops_table.setItem(0, 2, QTableWidgetItem("—"))
+            self._ops_table.setItem(0, 3, QTableWidgetItem("—"))

@@ -7,16 +7,9 @@ from PyQt6.QtGui import QColor, QFont, QIcon
 from PyQt6.QtWidgets import QHBoxLayout, QFrame, QLabel, QListWidget, QListWidgetItem, QVBoxLayout
 
 from solitaire.ui.premium.components.common.icons import icon_pixmap
-from solitaire.ui.premium.controllers.game_controller import GameController, pretty_pile
+from solitaire.ui.premium.controllers.game_controller import GameController, describe_move
 
-
-def describe_move(event) -> str:
-    """Compact readable notation, e.g. '2♦ to Column 6'."""
-    description = event.description
-    for pile_id in (event.source_pile, event.destination_pile):
-        if pile_id:
-            description = description.replace(pile_id, pretty_pile(pile_id))
-    return description
+__all__ = ["MoveLogPanel", "describe_move"]
 
 
 class MoveLogPanel(QFrame):

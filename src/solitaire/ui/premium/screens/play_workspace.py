@@ -70,6 +70,9 @@ class PlayWorkspace(QWidget):
         if reason == "new-game":
             self.move_log.clear_log()
             self.animation.interrupt_all()
+            # A fresh table must never inherit the previous game's feedback
+            # card — return the panel to its quiet idle state immediately.
+            self.feedback_panel.show_idle()
         self.scene.sync(animate=reason not in ("new-game",))
         self.dashboard.refresh()
 

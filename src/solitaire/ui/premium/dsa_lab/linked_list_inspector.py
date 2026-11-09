@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QComboBox, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from solitaire.ui.premium.dsa_lab.data_provider import linked_list_report
 from solitaire.ui.premium.dsa_lab.widgets import LiveBadge, SectionTitle, StatChip, card_color
@@ -121,7 +121,10 @@ class LinkedListInspector(QWidget):
         layout.addLayout(header)
 
         selector_row = QHBoxLayout()
-        selector_row.addWidget(QLabel("Tableau column:"))
+        selector_row.setSpacing(8)
+        selector_label = QLabel("Tableau column:")
+        selector_label.setStyleSheet("color: #F2EEE2; background: transparent;")
+        selector_row.addWidget(selector_label)
         self._column_selector = QComboBox()
         for index in range(1, 8):
             self._column_selector.addItem(f"Column {index}", f"tableau-{index}")
@@ -130,24 +133,29 @@ class LinkedListInspector(QWidget):
         selector_row.addStretch(1)
         layout.addLayout(selector_row)
 
-        stats_row = QHBoxLayout()
+        stats_grid = QGridLayout()
+        stats_grid.setHorizontalSpacing(24)
+        stats_grid.setVerticalSpacing(6)
         self._head_stat = StatChip("Head", "—")
         self._tail_stat = StatChip("Tail", "—")
         self._append_stat = StatChip("APPEND_NODE", "0")
         self._remove_stat = StatChip("REMOVE_TOP_NODE", "0")
         self._detach_stat = StatChip("DETACH_RUN", "0")
         self._attach_stat = StatChip("ATTACH_RUN", "0")
-        for stat in (
-            self._head_stat,
-            self._tail_stat,
-            self._append_stat,
-            self._remove_stat,
-            self._detach_stat,
-            self._attach_stat,
+        for position, stat in enumerate(
+            (
+                self._head_stat,
+                self._tail_stat,
+                self._append_stat,
+                self._remove_stat,
+                self._detach_stat,
+                self._attach_stat,
+            )
         ):
-            stats_row.addWidget(stat)
-            stats_row.addStretch(1)
-        layout.addLayout(stats_row)
+            # 2×3 grid: every label gets a third of the width, so even the
+            # longest operation name never wraps mid-value.
+            stats_grid.addWidget(stat, position // 3, position % 3)
+        layout.addLayout(stats_grid)
 
         explanation = QLabel(
             "Each tableau column is a Stack backed by this doubly linked list. Detaching a "
@@ -163,6 +171,13 @@ class LinkedListInspector(QWidget):
         self._valid_label = QLabel("Chain integrity: valid")
         self._valid_label.setObjectName("mutedText")
         layout.addWidget(self._valid_label)
+
+        # Land on the deepest column so the diagram shows a real chain instead
+        # of a single-node column (real pile sizes, never hard-coded).
+        deepest = max(
+            range(1, 8), key=lambda i: self._game.state.tableau[f"tableau-{i}"].size()
+        )
+        self._column_selector.setCurrentIndex(deepest - 1)
 
     def refresh(self) -> None:
         column_id = self._column_selector.currentData() or "tableau-1"

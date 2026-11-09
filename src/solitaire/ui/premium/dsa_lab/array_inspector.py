@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from solitaire.domain.card import Suit
 from solitaire.domain.operations import StructureName
 from solitaire.ui.premium.dsa_lab.data_provider import array_report, operation_counts
 from solitaire.ui.premium.dsa_lab.widgets import (
@@ -26,6 +27,8 @@ from solitaire.ui.premium.dsa_lab.widgets import (
     PileTag,
     SectionTitle,
     StatChip,
+    clear_layout,
+    card_text,
 )
 
 LIFECYCLE_STEPS = [
@@ -84,18 +87,59 @@ class ArrayInspector(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMaximumHeight(78)
+        scroll.setMaximumHeight(84)
         scroll.setStyleSheet("background: transparent; border: none;")
         strip_holder = QWidget()
         self._deal_strip = QHBoxLayout(strip_holder)
         self._deal_strip.setContentsMargins(0, 0, 0, 0)
         self._deal_strip.setSpacing(3)
-        self._deal_strip.addStretch(1)
         scroll.setWidget(strip_holder)
         deal_layout.addWidget(scroll)
         layout.addWidget(deal_frame, 1)
+
+        # --- remaining stock ----------------------------------------------------
+        remaining_frame = QFrame()
+        remaining_frame.setObjectName("panelCard")
+        remaining_layout = QVBoxLayout(remaining_frame)
+        remaining_layout.setContentsMargins(14, 12, 14, 12)
+        remaining_layout.setSpacing(8)
+
+        remaining_header = QHBoxLayout()
+        remaining_header.addWidget(SectionTitle("Remaining in the stock (FIFO front first)"))
+        remaining_header.addStretch(1)
+        self._remaining_tag = PileTag("24 of 52")
+        remaining_header.addWidget(self._remaining_tag)
+        remaining_layout.addLayout(remaining_header)
+
+        self._remaining_caption = QLabel("—")
+        self._remaining_caption.setObjectName("mutedText")
+        remaining_layout.addWidget(self._remaining_caption)
+
+        remaining_scroll = QScrollArea()
+        remaining_scroll.setWidgetResizable(True)
+        remaining_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        remaining_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        remaining_scroll.setMaximumHeight(84)
+        remaining_scroll.setStyleSheet("background: transparent; border: none;")
+        remaining_holder = QWidget()
+        self._remaining_strip = QHBoxLayout(remaining_holder)
+        self._remaining_strip.setContentsMargins(0, 0, 0, 0)
+        self._remaining_strip.setSpacing(3)
+        remaining_scroll.setWidget(remaining_holder)
+        remaining_layout.addWidget(remaining_scroll)
+
+        suits_row = QHBoxLayout()
+        suits_row.setSpacing(16)
+        self._suit_stats: dict[Suit, StatChip] = {
+            suit: StatChip(suit.name.title(), "0") for suit in Suit
+        }
+        for suit in Suit:
+            suits_row.addWidget(self._suit_stats[suit])
+        suits_row.addStretch(1)
+        remaining_layout.addLayout(suits_row)
+        layout.addWidget(remaining_frame)
 
         # --- stats row -----------------------------------------------------------
         stats_row = QHBoxLayout()
@@ -168,12 +212,27 @@ class ArrayInspector(QWidget):
         self._size_stat.set_value(str(report.deck_size_now))
         self._deal_tag.setText(f"{len(report.deal_order)} dealt")
 
-        while self._deal_strip.count():
-            item = self._deal_strip.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.setParent(None)
-                widget.deleteLater()
+        clear_layout(self._deal_strip)
         for card_id in report.deal_order[:40]:
             self._deal_strip.addWidget(MiniCardChip.tiny(card_id))
         self._deal_strip.addStretch(1)
+
+        # --- remaining stock (live FIFO view of the queue) -----------------------
+        stock_cards = game.state.stock.to_list()
+        self._remaining_tag.setText(f"{len(stock_cards)} of 52")
+        if stock_cards:
+            self._remaining_caption.setText(
+                "Next draw (front): " + card_text(stock_cards[0].card_id)
+                + "   ·   Last in (rear): " + card_text(stock_cards[-1].card_id)
+            )
+        else:
+            self._remaining_caption.setText("The stock is empty.")
+        clear_layout(self._remaining_strip)
+        for card in stock_cards[:40]:
+            self._remaining_strip.addWidget(MiniCardChip.tiny(card.card_id, face_down=True))
+        self._remaining_strip.addStretch(1)
+        suit_counts = {suit: 0 for suit in Suit}
+        for card in stock_cards:
+            suit_counts[card.suit] += 1
+        for suit in Suit:
+            self._suit_stats[suit].set_value(str(suit_counts[suit]))

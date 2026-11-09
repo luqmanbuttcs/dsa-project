@@ -156,14 +156,17 @@ class StackInspector(QWidget):
         operations = sorted(report.operations.items())
         self._operations_table.setRowCount(max(1, len(operations)))
         if not operations:
-            self._operations_table.setItem(
-                0, 0, QTableWidgetItem("No tracked operations yet for this pile")
-            )
+            empty_item = QTableWidgetItem("No tracked operations yet for this pile")
+            empty_item.setToolTip("Push/pop events recorded by the OperationTracker will appear here.")
+            self._operations_table.setItem(0, 0, empty_item)
             self._operations_table.setItem(0, 1, QTableWidgetItem("0"))
+            # Give the placeholder row enough height for the full sentence.
+            self._operations_table.setRowHeight(0, 40)
         else:
             for row, (operation, count) in enumerate(operations):
                 self._operations_table.setItem(row, 0, QTableWidgetItem(operation))
                 self._operations_table.setItem(row, 1, QTableWidgetItem(str(count)))
+                self._operations_table.setRowHeight(row, 28)
 
     def _clear_list(self) -> None:
         while self._stack_list.count():

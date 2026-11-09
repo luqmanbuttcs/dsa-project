@@ -228,7 +228,12 @@ class OverviewPage(QWidget):
                 )
             card_layout.addWidget(inspect_button, 0, Qt.AlignmentFlag.AlignRight)
 
-            grid.addWidget(card, index // 2, index % 2)
+            if index == len(STRUCTURE_CARDS) - 1:
+                # The fifth card spans the full row so the grid never leaves a
+                # half-width orphan (and the Dictionary body gets room to breathe).
+                grid.addWidget(card, index // 2, 0, 1, 2)
+            else:
+                grid.addWidget(card, index // 2, index % 2)
         layout.addLayout(grid)
         layout.addStretch(1)
 
