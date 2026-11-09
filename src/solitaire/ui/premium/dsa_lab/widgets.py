@@ -44,6 +44,14 @@ def card_color(card_id: str) -> str:
     return "#D24343" if suit_code in ("H", "D") else "#1B1E26"
 
 
+def cards_brief(card_ids: tuple[str, ...] | list[str] | None) -> str:
+    """Compact text for an event's card list: 'K♠' or 'K♠ (+3)' for runs."""
+    if not card_ids:
+        return "—"
+    head = card_text(card_ids[0])
+    return head if len(card_ids) == 1 else f"{head} (+{len(card_ids) - 1})"
+
+
 class SectionTitle(QLabel):
     def __init__(self, text: str, parent=None) -> None:
         super().__init__(text, parent)

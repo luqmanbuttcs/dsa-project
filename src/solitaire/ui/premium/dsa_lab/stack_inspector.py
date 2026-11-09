@@ -20,13 +20,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from solitaire.ui.premium.dsa_lab.data_provider import stack_report_for_pile
+from solitaire.ui.premium.dsa_lab.data_provider import recent_stack_events, stack_report_for_pile
 from solitaire.ui.premium.dsa_lab.widgets import (
     LiveBadge,
     MiniCardChip,
     PileTag,
     SectionTitle,
     StatChip,
+    cards_brief,
 )
 
 PILES = [
@@ -96,7 +97,27 @@ class StackInspector(QWidget):
         holder_layout.addLayout(self._stack_list)
         holder_layout.addStretch(1)
         scroll.setWidget(stack_holder)
-        stack_column.addWidget(scroll, 1)
+        stack_column.addWidget(scroll, 3)
+
+        # Recent real tracker events for the selected pile (fills the lower
+        # left with live data, mirroring the Queue page's operation table).
+        stack_column.addSpacing(4)
+        stack_column.addWidget(SectionTitle("Recent events on this pile"))
+        self._events_table = QTableWidget(0, 4)
+        self._events_table.setHorizontalHeaderLabels(["Seq", "Operation", "Card", "Context"])
+        self._events_table.verticalHeader().setVisible(False)
+        self._events_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._events_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._events_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._events_table.horizontalHeader().setStretchLastSection(True)
+        self._events_table.horizontalHeader().setStyleSheet(
+            "color: #E8C766; font-weight: bold; background: #13253D;"
+        )
+        self._events_table.setAlternatingRowColors(True)
+        self._events_table.setStyleSheet(
+            "QTableWidget { background: #0D1B2E; alternate-background-color: #10203A; }"
+        )
+        stack_column.addWidget(self._events_table, 2)
         columns.addLayout(stack_column, 3)
 
         # Operations table.
@@ -151,6 +172,22 @@ class StackInspector(QWidget):
             empty = QLabel("This pile is empty right now.")
             empty.setObjectName("mutedText")
             self._stack_list.addWidget(empty)
+
+        events = recent_stack_events(self._game.tracker, pile_id)
+        self._events_table.setRowCount(max(1, len(events)))
+        if not events:
+            self._events_table.setItem(0, 0, QTableWidgetItem("No stack events yet for this pile"))
+            self._events_table.setItem(0, 1, QTableWidgetItem("—"))
+            self._events_table.setItem(0, 2, QTableWidgetItem("—"))
+            self._events_table.setItem(0, 3, QTableWidgetItem("—"))
+            self._events_table.setRowHeight(0, 40)
+        else:
+            for row, event in enumerate(events):
+                self._events_table.setItem(row, 0, QTableWidgetItem(str(event.sequence)))
+                self._events_table.setItem(row, 1, QTableWidgetItem(event.operation))
+                self._events_table.setItem(row, 2, QTableWidgetItem(cards_brief(event.card_ids)))
+                self._events_table.setItem(row, 3, QTableWidgetItem(event.context or "—"))
+                self._events_table.setRowHeight(row, 26)
 
         operations = sorted(report.operations.items())
         self._operations_table.setRowCount(max(1, len(operations)))

@@ -4,10 +4,29 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import QComboBox, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-from solitaire.ui.premium.dsa_lab.data_provider import linked_list_report
-from solitaire.ui.premium.dsa_lab.widgets import LiveBadge, SectionTitle, StatChip, card_color
+from solitaire.ui.premium.dsa_lab.data_provider import (
+    linked_list_report,
+    recent_linked_list_events,
+)
+from solitaire.ui.premium.dsa_lab.widgets import (
+    LiveBadge,
+    SectionTitle,
+    StatChip,
+    card_color,
+    cards_brief,
+)
 
 
 class NodeDiagram(QWidget):
@@ -167,7 +186,32 @@ class LinkedListInspector(QWidget):
         layout.addWidget(explanation)
 
         self._diagram = NodeDiagram()
-        layout.addWidget(self._diagram, 1)
+        # A 46 px chain inside a page-tall frame reads as dead space; cap the
+        # diagram and spend the remaining height on real per-column events.
+        self._diagram.setMaximumHeight(280)
+        layout.addWidget(self._diagram)
+
+        layout.addSpacing(4)
+        layout.addWidget(SectionTitle("Recent events on this column"))
+        self._events_table = QTableWidget(0, 4)
+        self._events_table.setHorizontalHeaderLabels(["Seq", "Operation", "Card(s)", "Context"])
+        self._events_table.verticalHeader().setVisible(False)
+        self._events_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._events_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._events_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._events_table.horizontalHeader().setStretchLastSection(True)
+        self._events_table.horizontalHeader().setStyleSheet(
+            "color: #E8C766; font-weight: bold; background: #13253D;"
+        )
+        self._events_table.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._events_table.setAlternatingRowColors(True)
+        self._events_table.setStyleSheet(
+            "QTableWidget { background: #0D1B2E; alternate-background-color: #10203A; }"
+        )
+        layout.addWidget(self._events_table, 1)
+
         self._valid_label = QLabel("Chain integrity: valid")
         self._valid_label.setObjectName("mutedText")
         layout.addWidget(self._valid_label)
@@ -192,3 +236,17 @@ class LinkedListInspector(QWidget):
         self._valid_label.setText(
             "Chain integrity: valid" if report.valid else "Chain integrity: BROKEN"
         )
+
+        events = recent_linked_list_events(self._game.tracker, column_id)
+        self._events_table.setRowCount(max(1, len(events)))
+        if not events:
+            self._events_table.setItem(0, 0, QTableWidgetItem("No linked-list events yet for this column"))
+            self._events_table.setItem(0, 1, QTableWidgetItem("—"))
+            self._events_table.setItem(0, 2, QTableWidgetItem("—"))
+            self._events_table.setItem(0, 3, QTableWidgetItem("—"))
+        else:
+            for row, event in enumerate(events):
+                self._events_table.setItem(row, 0, QTableWidgetItem(str(event.sequence)))
+                self._events_table.setItem(row, 1, QTableWidgetItem(event.operation))
+                self._events_table.setItem(row, 2, QTableWidgetItem(cards_brief(event.card_ids)))
+                self._events_table.setItem(row, 3, QTableWidgetItem(event.context or "—"))

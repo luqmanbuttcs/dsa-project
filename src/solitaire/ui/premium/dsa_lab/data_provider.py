@@ -169,6 +169,30 @@ def _stack_operations_for(tracker: OperationTracker, pile_id: str) -> dict[str, 
     return counts
 
 
+def recent_stack_events(
+    tracker: OperationTracker, pile_id: str, limit: int = 8
+) -> list[OperationEvent]:
+    """The latest STACK events for one pile, oldest first, at most `limit`."""
+    events = [
+        event
+        for event in tracker.events
+        if event.structure is StructureName.STACK and event.pile_id == pile_id
+    ]
+    return events[-limit:]
+
+
+def recent_linked_list_events(
+    tracker: OperationTracker, column_id: str, limit: int = 6
+) -> list[OperationEvent]:
+    """The latest LINKED_LIST events for one tableau column, oldest first."""
+    events = [
+        event
+        for event in tracker.events
+        if event.structure is StructureName.LINKED_LIST and event.pile_id == column_id
+    ]
+    return events[-limit:]
+
+
 # --- queue ------------------------------------------------------------------------
 
 

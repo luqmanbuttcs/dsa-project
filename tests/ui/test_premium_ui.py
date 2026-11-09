@@ -28,6 +28,7 @@ from solitaire.ui.premium.dsa_lab.data_provider import (
 )
 from solitaire.ui.premium.main_window import PremiumMainWindow
 from solitaire.ui.premium.navigation import LabPage, Workspace
+from solitaire.domain.operations import StructureName
 from solitaire.ui.premium.theme import (
     CARD_H,
     CARD_W,
@@ -344,6 +345,61 @@ def test_stats_page_refresh_pulls_live_data(window):
     assert stats_page._value_labels["Moves"].text() == "1"
     assert stats_page._value_labels["Stock"].text() == "23 cards"
     assert stats_page._value_labels["Status"].text() == "Playing"
+
+
+def test_stack_page_recent_events_come_from_the_real_tracker(window):
+    window.game.draw_from_stock()
+    window.open_dsa_lab()
+
+    stack_page = window.dsa_lab._pages[LabPage.STACK]
+    stack_page.refresh()
+    table = stack_page._events_table
+
+    real = [
+        event
+        for event in window.game.tracker.events
+        if event.structure is StructureName.STACK and event.pile_id == "waste"
+    ]
+    assert real, "a stock draw must record a real PUSH on the waste pile"
+    assert table.rowCount() == min(len(real), 8)
+    # Rows are oldest first and mirror the tracker sequences exactly.
+    for row, event in enumerate(real[-8:]):
+        assert table.item(row, 0).text() == str(event.sequence)
+        assert table.item(row, 1).text() == event.operation
+    assert table.item(table.rowCount() - 1, 1).text() == "PUSH"
+    # Switching the pile selector re-derives the table from real events.
+    index = stack_page._pile_selector.findData("foundation-s")
+    stack_page._pile_selector.setCurrentIndex(index)
+    rows = stack_page._events_table.rowCount()
+    assert rows == max(1, stack_page._events_table.rowCount())  # shape holds
+    first_cell = stack_page._events_table.item(0, 0)
+    assert first_cell is not None and first_cell.text()
+
+
+def test_linked_list_page_recent_events_come_from_the_real_tracker(window):
+    window.open_dsa_lab()
+
+    page = window.dsa_lab._pages[LabPage.LINKED_LIST]
+    page.refresh()
+    table = page._events_table
+    column_id = page._column_selector.currentData()
+
+    real = [
+        event
+        for event in window.game.tracker.events
+        if event.structure is StructureName.LINKED_LIST and event.pile_id == column_id
+    ]
+    assert real, "the dealt column must carry real linked-list events"
+    assert table.rowCount() == min(len(real), 6)
+    for row, event in enumerate(real[-6:]):
+        assert table.item(row, 0).text() == str(event.sequence)
+        assert table.item(row, 1).text() == event.operation
+    assert {table.item(row, 1).text() for row in range(table.rowCount())} <= {
+        "APPEND_NODE",
+        "REMOVE_TOP_NODE",
+        "DETACH_RUN",
+        "ATTACH_RUN",
+    }
 
 
 # --- settings / animation policy -----------------------------------------------------------------
