@@ -670,3 +670,42 @@ def test_linked_list_page_defaults_to_the_deepest_column(window):
     ]
     expected = sizes.index(max(sizes))
     assert inspector._column_selector.currentIndex() == expected
+
+
+# --- regression: settled projection for captures and tests --------------------------
+
+
+def test_settle_all_snaps_in_flight_cards_to_engine_positions(window):
+    """After settle_all() no card may remain mid-animation: every item must
+    sit at its authoritative engine-derived position (screenshots and tests
+    observe the final projection, never a cosmetic in-flight pose)."""
+    scene = window.play_workspace.scene
+
+    # Play real moves so at least one card animates, then settle.
+    window.game.draw_from_stock()
+    hints = window.game.engine.find_hints()
+    if hints:
+        hint = hints[0]
+        window.game.try_move(hint.source_pile, hint.card_ids[0], hint.destination_pile)
+
+    scene.settle_all()
+    QApplication.processEvents()
+
+    state = window.game.state
+    for suit in state.foundations:
+        pile_id = f"foundation-{suit.code.lower()}"
+        cards = state.foundations[suit].to_list()
+        for card in cards:
+            item = scene.card_items[card.card_id]
+            assert item.pos() == scene.slot_position(pile_id)
+
+    for column_id, column in state.tableau.items():
+        for card in column.cards_bottom_to_top():
+            item = scene.card_items[card.card_id]
+            assert scene.card_zone[card.card_id] == column_id
+
+    # The projection must be stable: a second settle changes nothing.
+    before = {cid: item.pos() for cid, item in scene.card_items.items()}
+    scene.settle_all()
+    after = {cid: item.pos() for cid, item in scene.card_items.items()}
+    assert before == after

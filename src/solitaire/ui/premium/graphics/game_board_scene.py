@@ -193,6 +193,17 @@ class GameBoardScene(QGraphicsScene):
         if self._animation is not None:
             self._animation.interrupt_all()
 
+    def settle_all(self) -> None:
+        """Force every card to its authoritative engine-derived position.
+
+        Cosmetic moves are interrupted and the projection re-snaps without
+        animation. Game state is untouched — this only settles the *paint*,
+        so screenshots and tests never observe a card mid-flight.
+        """
+        if self._animation is not None:
+            self._animation.interrupt_all()
+        self.sync(animate=False)
+
     # --- projection -----------------------------------------------------------
     def slot_position(self, pile_id: str) -> QPointF:
         return self._slots[pile_id]

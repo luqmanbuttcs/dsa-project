@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QColor, QPainter, QPainterPath
+from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QGraphicsObject
 
 from solitaire.domain.card import Suit
@@ -43,19 +43,33 @@ class FoundationGraphicsItem(PileSlotItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         rect = self.slot_rect()
 
+        # Recessed dark-green well with a gold dressage frame.
         path = QPainterPath()
         path.addRoundedRect(rect, 10.0, 10.0)
-        painter.fillPath(path, QColor(10, 64, 33, 170))
-        painter.setPen(QColor(120, 220, 150, 170))
+        painter.fillPath(path, QColor(6, 44, 21, 210))
+        painter.setPen(QPen(QColor(212, 175, 55, 205), 1.7))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(path)
+        painter.setPen(QPen(QColor(240, 199, 94, 90), 0.9))
+        painter.drawPath(_rounded(rect.adjusted(3.2, 3.2, -3.2, -3.2), 7.5))
 
-        # Large faint suit symbol.
-        suit_rect = QRectF(
-            rect.center().x() - 26, rect.center().y() - 26, 52, 52
-        )
-        painter.setOpacity(0.34)
-        resources.suit_renderer(self._suit.value).render(painter, suit_rect)
+        # Inner contact shadow along the top edge for physical depth.
+        top_shadow = QLinearGradient(rect.topLeft(), QPointF(rect.left(), rect.top() + 20.0))
+        top_shadow.setColorAt(0.0, QColor(0, 0, 0, 90))
+        top_shadow.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setClipPath(path)
+        painter.fillPath(path, top_shadow)
+        painter.setClipping(False)
+
+        # Large suit symbol in full heraldic colour with an embossed twin.
+        pip_center = rect.center()
+        pip_rect = QRectF(pip_center.x() - 27, pip_center.y() - 27, 54, 54)
+        shadow_rect = pip_rect.translated(1.6, 2.2)
+        painter.setOpacity(0.35)
+        resources.suit_renderer(self._suit.value).render(painter, shadow_rect)
+        painter.setOpacity(1.0)
+        painter.setOpacity(0.62)
+        resources.suit_renderer(self._suit.value).render(painter, pip_rect)
         painter.setOpacity(1.0)
 
         if self._legal_glow > 0.01:
@@ -63,3 +77,9 @@ class FoundationGraphicsItem(PileSlotItem):
 
             paint_glow(painter, rect, 10.0, QColor(240, 199, 94), self._legal_glow)
         painter.restore()
+
+
+def _rounded(rect: QRectF, radius: float) -> QPainterPath:
+    path = QPainterPath()
+    path.addRoundedRect(rect, radius, radius)
+    return path

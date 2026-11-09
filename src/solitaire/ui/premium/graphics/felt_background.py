@@ -35,16 +35,16 @@ def _lighting_layer(width: int, height: int) -> QPixmap:
 
     # Warm table-light pool from above centre.
     light = QRadialGradient(width * 0.5, height * 0.28, max(width, height) * 0.85)
-    light.setColorAt(0.0, QColor(255, 246, 214, 26))
-    light.setColorAt(0.45, QColor(255, 246, 214, 8))
+    light.setColorAt(0.0, QColor(255, 246, 214, 36))
+    light.setColorAt(0.45, QColor(255, 246, 214, 11))
     light.setColorAt(1.0, QColor(255, 246, 214, 0))
     painter.fillRect(QRectF(0, 0, width, height), light)
 
     # Dark vignette around the edges.
     vignette = QRadialGradient(width / 2, height / 2, max(width, height) * 0.72)
     vignette.setColorAt(0.0, QColor(0, 0, 0, 0))
-    vignette.setColorAt(0.68, QColor(0, 0, 0, 30))
-    vignette.setColorAt(1.0, QColor(0, 0, 0, 108))
+    vignette.setColorAt(0.68, QColor(0, 0, 0, 24))
+    vignette.setColorAt(1.0, QColor(0, 0, 0, 88))
     painter.fillRect(QRectF(0, 0, width, height), vignette)
     painter.end()
     return pixmap

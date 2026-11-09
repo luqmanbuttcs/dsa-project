@@ -91,11 +91,6 @@ class StackInspector(QWidget):
         holder_layout = QVBoxLayout(stack_holder)
         holder_layout.setContentsMargins(0, 0, 0, 0)
         holder_layout.setSpacing(4)
-        self._top_tag_row = QHBoxLayout()
-        self._top_tag_row.addStretch(1)
-        self._top_tag = PileTag("TOP")
-        self._top_tag_row.addWidget(self._top_tag)
-        holder_layout.addLayout(self._top_tag_row)
         self._stack_list = QVBoxLayout()
         self._stack_list.setSpacing(3)
         holder_layout.addLayout(self._stack_list)
@@ -140,7 +135,13 @@ class StackInspector(QWidget):
                 row.addWidget(chip)
                 row.addWidget(PileTag("TOP"), 0, Qt.AlignmentFlag.AlignVCenter)
             else:
-                row.addWidget(MiniCardChip(card_id))
+                chip = MiniCardChip(card_id)
+                row.addWidget(chip)
+            chip.setFixedSize(64, 88)
+            for label in chip.findChildren(QLabel):
+                font = label.font()
+                font.setPixelSize(21)
+                label.setFont(font)
             row.addStretch(1)
             holder_widget = QWidget()
             holder_widget.setLayout(row)
@@ -150,8 +151,6 @@ class StackInspector(QWidget):
             empty = QLabel("This pile is empty right now.")
             empty.setObjectName("mutedText")
             self._stack_list.addWidget(empty)
-
-        self._top_tag.setVisible(report.top_card_id is not None)
 
         operations = sorted(report.operations.items())
         self._operations_table.setRowCount(max(1, len(operations)))

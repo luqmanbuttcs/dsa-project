@@ -24,8 +24,8 @@ from solitaire.ui.premium.theme import (
 STATE_STYLES = {
     "idle": {"bg": QColor(12, 22, 38, 190), "border": QColor(36, 57, 90), "icon": "spade",
              "title": "Ready", "title_color": QColor("#8FA0B8"), "icon_color": QColor("#6E809A")},
-    "success": {"bg": QColor(15, 61, 34, 235), "border": QColor(55, 185, 110), "icon": "check",
-                "title": "Great Move!", "title_color": QColor("#B8EBC9"), "icon_color": QColor(55, 185, 110)},
+    "success": {"bg": QColor(10, 46, 25, 232), "border": QColor(64, 168, 104), "icon": "check",
+                "title": "Great Move!", "title_color": QColor("#B8EBC9"), "icon_color": QColor(64, 168, 104)},
     "error": {"bg": QColor(61, 20, 20, 235), "border": QColor(224, 85, 85), "icon": "warning",
               "title": "Invalid Move", "title_color": QColor("#F2B8B8"), "icon_color": QColor(224, 85, 85)},
     "info": {"bg": QColor(13, 27, 48, 235), "border": QColor(212, 175, 55), "icon": "info",
