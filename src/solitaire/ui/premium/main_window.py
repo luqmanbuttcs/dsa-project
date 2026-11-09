@@ -10,9 +10,9 @@ from solitaire.ui.premium.components.header.header_bar import HeaderBar
 from solitaire.ui.premium.controllers.game_controller import GameController
 from solitaire.ui.premium.controllers.navigation_controller import NavigationController
 from solitaire.ui.premium.controllers.selection_controller import SelectionController
-from solitaire.ui.premium.dialogs.settings_dialog import SettingsDialog
 from solitaire.ui.premium.navigation import Workspace
 from solitaire.ui.premium.screens.dsa_lab_workspace import DsaLabWorkspace
+from solitaire.ui.premium.screens.game_mode_page import GameModePage
 from solitaire.ui.premium.screens.play_workspace import PlayWorkspace
 from solitaire.ui.premium.theme import DESIGN_H, DESIGN_W, MIN_WINDOW_H, MIN_WINDOW_W, qss
 
@@ -35,10 +35,22 @@ class PremiumMainWindow(QMainWindow):
         self.header = HeaderBar(self)
         self.play_workspace = PlayWorkspace(self.game, self.selection, self)
         self.dsa_lab = DsaLabWorkspace(self.game, on_back=self.open_play_workspace, parent=self)
+        self.game_mode_page = GameModePage(
+            self.game,
+            draw_mode=self.game.draw_mode,
+            reduce_motion=self._read_setting("reduce_motion", False, bool),
+            speed_multiplier=self._read_setting("animation_speed", 1.0, float),
+            show_sidebar=True,
+            on_show_sidebar=self._set_sidebar_visible,
+            on_new_game=self._game_mode_new_game,
+            on_back=self._close_game_mode,
+            parent=self,
+        )
 
         self.workspaces = QStackedWidget(self)
         self.workspaces.addWidget(self.play_workspace)
         self.workspaces.addWidget(self.dsa_lab)
+        self.workspaces.addWidget(self.game_mode_page)
 
         central = QWidget(self)
         central_layout = QVBoxLayout(central)
@@ -81,14 +93,26 @@ class PremiumMainWindow(QMainWindow):
     def open_play_workspace(self) -> None:
         self.navigation.open_play()
 
-    def open_dsa_lab(self) -> None:
+    def closeEvent(self, event) -> None:  # noqa: N802
+        # Halt cosmetic animation while every graphics item is still alive so
+        # that later destruction (also from Python GC) cannot touch items
+        # through a running animation. See CardAnimationManager lifecycle notes.
+        self.play_workspace.scene.prepare_shutdown()
+        super().closeEvent(event)
+
+    def open_dsa_lab(self, page=None) -> None:
         self.navigation.open_dsa_lab()
+        if page is not None:
+            self.dsa_lab.show_page(page)
 
     def _switch_workspace(self, value: str) -> None:
         workspace = Workspace(value)
-        self.workspaces.setCurrentIndex(0 if workspace is Workspace.PLAY else 1)
+        index = {Workspace.PLAY: 0, Workspace.DSA_LAB: 1, Workspace.GAME_MODE: 2}[workspace]
+        self.workspaces.setCurrentIndex(index)
         if workspace is Workspace.DSA_LAB:
             self.dsa_lab.refresh()
+        elif workspace is Workspace.GAME_MODE:
+            self._sync_game_mode()
 
     # --- header updates ------------------------------------------------------------
     def _refresh_metrics(self) -> None:
@@ -129,19 +153,38 @@ class PremiumMainWindow(QMainWindow):
         self.game.new_game(draw_count=self.game.draw_mode)
 
     def open_settings(self) -> None:
-        dialog = SettingsDialog(
-            self.game,
-            show_sidebar=self.play_workspace.dashboard.isVisible(),
-            reduce_motion=self._reduce_motion,
-            speed_multiplier=self._speed_multiplier,
-            on_show_sidebar=self._set_sidebar_visible,
-            parent=self,
-        )
-        if dialog.exec():
-            dialog.apply()
-            self._reduce_motion = dialog.reduce_motion
-            self._speed_multiplier = dialog.speed_multiplier
-            self._apply_animation_settings()
+        """Open the Game Mode page (draw mode, motion, view, new game)."""
+        self.navigation.open_workspace(Workspace.GAME_MODE)
+
+    def _read_setting(self, key: str, default, type_):
+        return self._settings.value(key, default, type=type_)
+
+    def _sync_game_mode(self) -> None:
+        page = self.game_mode_page
+        (page._draw_three if self.game.draw_mode == 3 else page._draw_one).setChecked(True)
+        page._reduce_motion.toggle.blockSignals(True)
+        page._reduce_motion.toggle.setChecked(self._reduce_motion)
+        page._reduce_motion.toggle.blockSignals(False)
+        page._show_sidebar.toggle.blockSignals(True)
+        page._show_sidebar.toggle.setChecked(self.play_workspace.dashboard.isVisible())
+        page._show_sidebar.toggle.blockSignals(False)
+
+    def _leave_game_mode(self) -> None:
+        """Apply Game Mode choices and persist them before returning to play."""
+        page = self.game_mode_page
+        page.apply()
+        self._reduce_motion = page.reduce_motion
+        self._speed_multiplier = page.speed_multiplier
+        self._apply_animation_settings()
+
+    def _close_game_mode(self) -> None:
+        self._leave_game_mode()
+        self.open_play_workspace()
+
+    def _game_mode_new_game(self) -> None:
+        self._leave_game_mode()
+        self.new_game()
+        self.open_play_workspace()
 
     def _set_sidebar_visible(self, visible: bool) -> None:
         self.play_workspace.dashboard.setVisible(visible)

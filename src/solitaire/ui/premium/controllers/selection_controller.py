@@ -32,12 +32,41 @@ class SelectionController(QObject):
             return []
         return self._game.legal_destinations(self.source_pile, self.card_id)
 
+    def selected_run(self) -> list[str]:
+        """Card IDs of the selected run (selected card through pile top)."""
+        if not self.has_selection:
+            return []
+        state = self._game.state
+        if self.source_pile == "waste":
+            return [self.card_id] if self.card_id else []
+        if self.source_pile.startswith("tableau-"):
+            column = state.tableau.get(self.source_pile)
+            if column is None:
+                return []
+            cards = column.cards_bottom_to_top()
+            for position, card in enumerate(cards):
+                if card.card_id == self.card_id:
+                    return [entry.card_id for entry in cards[position:]]
+            return []
+        return [self.card_id] if self.card_id else []
+
     def is_selected(self, card_id: str) -> bool:
         return self.card_id == card_id
 
     def click_card(self, pile_id: str, card_id: str, *, face_up: bool, top_of_pile: bool) -> None:
-        """Handle one click on a card in `pile_id`."""
-        if not face_up or not top_of_pile:
+        """Handle one click on a card in `pile_id`.
+
+        Any face-up card inside a tableau column may start a run selection
+        (the engine validates and transfers the whole face-up run). Waste
+        and foundation selections remain restricted to the pile top.
+        """
+        if pile_id == "stock":
+            self.clear()
+            return
+        if not face_up:
+            self.clear()
+            return
+        if not pile_id.startswith("tableau-") and not top_of_pile:
             self.clear()
             return
 
@@ -49,13 +78,6 @@ class SelectionController(QObject):
                     self._game.try_move(source, moving, pile_id)
                 self.clear()
                 return
-
-        if pile_id == "stock":
-            self.clear()
-            return
-        if pile_id == "waste" and not top_of_pile:
-            self.clear()
-            return
 
         self.source_pile = pile_id
         self.card_id = card_id

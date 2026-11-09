@@ -234,3 +234,185 @@ _PAINTERS = {
     "info": _info,
     "list": _list_icon,
 }
+
+
+def _array_icon(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 2.0)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    for index in range(3):
+        y = r.top() + 4 + index * (r.height() - 8) / 2.0
+        p.drawRoundedRect(QRectF(r.left(), y, r.width() - 6, (r.height() - 12) / 2.6), 2.4, 2.4)
+        p.drawLine(QPointF(r.right() - 3, y + (r.height() - 12) / 5), QPointF(r.right(), y + (r.height() - 12) / 5))
+
+
+def _stack_icon(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 2.0)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    for index, alpha in enumerate((90, 140, 220)):
+        inset = index * 4.2
+        rect = QRectF(r.left() + 3, r.top() + 2 + inset, r.width() - 6, r.height() * 0.30)
+        pen.setColor(QColor(c.red(), c.green(), c.blue(), alpha))
+        p.setPen(pen)
+        p.drawRoundedRect(rect, 3, 3)
+
+
+def _queue_icon(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 1.9)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    box_w = r.width() * 0.24
+    for index in range(3):
+        x = r.left() + 2 + index * (box_w + 3)
+        p.drawRoundedRect(QRectF(x, r.center().y() - r.height() * 0.26, box_w, r.height() * 0.52), 2.6, 2.6)
+    p.setBrush(c)
+    head = QPolygonF([
+        QPointF(r.right() - 1, r.center().y()),
+        QPointF(r.right() - 7, r.center().y() - 4.4),
+        QPointF(r.right() - 7, r.center().y() + 4.4),
+    ])
+    p.setPen(Qt.PenStyle.NoPen)
+    p.drawPolygon(head)
+
+
+def _linked_list_icon(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 1.9)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    cy = r.center().y()
+    for cx in (r.left() + 6, r.center().x(), r.right() - 6):
+        p.drawEllipse(QPointF(cx, cy), 4.6, 4.6)
+    p.drawLine(QPointF(r.left() + 10.5, cy), QPointF(r.center().x() - 5, cy))
+    p.drawLine(QPointF(r.center().x() + 5, cy), QPointF(r.right() - 10.5, cy))
+
+
+def _dictionary_icon(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 2.0)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawRoundedRect(QRectF(r.left() + 2, r.top() + 2, r.width() - 4, r.height() - 4), 3, 3)
+    p.drawLine(QPointF(r.left() + 2, r.top() + r.height() * 0.34), QPointF(r.right() - 2, r.top() + r.height() * 0.34))
+    p.drawLine(QPointF(r.left() + 2, r.top() + r.height() * 0.67), QPointF(r.right() - 2, r.top() + r.height() * 0.67))
+    p.drawLine(QPointF(r.center().x() + 1, r.top() + 2), QPointF(r.center().x() + 1, r.bottom() - 2))
+
+
+def _clock_small(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 1.6)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawEllipse(QRectF(r.left() + 2, r.top() + 2, r.width() - 4, r.height() - 4))
+    center = r.center()
+    p.drawLine(center, QPointF(center.x(), center.y() - 4.4))
+    p.drawLine(center, QPointF(center.x() + 3.4, center.y() + 1))
+
+
+def _trash(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 1.8)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawRoundedRect(QRectF(r.left() + 4, r.top() + 5, r.width() - 8, r.height() - 8), 2, 2)
+    p.drawLine(QPointF(r.center().x() - 3, r.top() + 2), QPointF(r.center().x() + 3, r.top() + 2))
+    p.drawLine(QPointF(r.left() + 5, r.top() + 5), QPointF(r.right() - 5, r.top() + 5))
+    for offset in (-3.0, 0.0, 3.0):
+        p.drawLine(QPointF(r.center().x() + offset, r.top() + 8), QPointF(r.center().x() + offset, r.bottom() - 4))
+
+
+def _search(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 2.0)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    glass = QRectF(r.left() + 2, r.top() + 2, r.width() * 0.62, r.height() * 0.62)
+    p.drawEllipse(glass)
+    p.drawLine(QPointF(glass.right() - 1, glass.bottom() - 1), QPointF(r.right() - 2, r.bottom() - 2))
+
+
+def _arrows_v(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 2.0)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    cx = r.center().x()
+    p.drawLine(QPointF(cx, r.top() + 2), QPointF(cx, r.bottom() - 2))
+    for cy, up in ((r.top() + 2, True), (r.bottom() - 2, False)):
+        direction = 1 if up else -1
+        p.setBrush(c)
+        p.setPen(Qt.PenStyle.NoPen)
+        head = QPolygonF([
+            QPointF(cx, cy + 5 * direction),
+            QPointF(cx - 4, cy - 2 * direction),
+            QPointF(cx + 4, cy - 2 * direction),
+        ])
+        p.drawPolygon(head)
+
+
+def _swap(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 2.0)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    top_y = r.center().y() - 4
+    bottom_y = r.center().y() + 4
+    p.drawLine(QPointF(r.left() + 2, top_y), QPointF(r.right() - 6, top_y))
+    p.drawLine(QPointF(r.left() + 6, bottom_y), QPointF(r.right() - 2, bottom_y))
+    p.setBrush(c)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.drawPolygon(QPolygonF([
+        QPointF(r.right() - 1, top_y),
+        QPointF(r.right() - 7, top_y - 4),
+        QPointF(r.right() - 7, top_y + 4),
+    ]))
+    p.drawPolygon(QPolygonF([
+        QPointF(r.left() + 1, bottom_y),
+        QPointF(r.left() + 7, bottom_y - 4),
+        QPointF(r.left() + 7, bottom_y + 4),
+    ]))
+
+
+def _crown(p: QPainter, r: QRectF, c: QColor) -> None:
+    pen = QPen(c, 1.8)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPolygon(QPolygonF([
+        QPointF(r.left() + 2, r.bottom() - 4),
+        QPointF(r.left() + 2, r.center().y() - 2),
+        QPointF(r.center().x() - r.width() * 0.22, r.center().y() + 3),
+        QPointF(r.center().x(), r.top() + 2),
+        QPointF(r.center().x() + r.width() * 0.22, r.center().y() + 3),
+        QPointF(r.right() - 2, r.center().y() - 2),
+        QPointF(r.right() - 2, r.bottom() - 4),
+    ]))
+
+
+def _sparkle(p: QPainter, r: QRectF, c: QColor) -> None:
+    painter_path = QPainterPath()
+    cx, cy = r.center().x(), r.center().y()
+    k = r.width() * 0.42
+    painter_path.moveTo(cx, cy - k)
+    painter_path.quadTo(cx + 2, cy - 2, cx + k, cy)
+    painter_path.quadTo(cx + 2, cy + 2, cx, cy + k)
+    painter_path.quadTo(cx - 2, cy + 2, cx - k, cy)
+    painter_path.quadTo(cx - 2, cy - 2, cx, cy - k)
+    painter_path.moveTo(cx - k * 0.5, cy - k * 0.5)
+    painter_path.quadTo(cx - 1, cy - 1, cx - k * 0.5, cy + k * 0.5)
+    painter_path.quadTo(cx - 1, cy + 1, cx - k * 0.5, cy - k * 0.5)
+    painter_path.moveTo(cx + k * 0.5, cy - k * 0.5)
+    painter_path.quadTo(cx + 1, cy - 1, cx + k * 0.5, cy + k * 0.5)
+    painter_path.quadTo(cx + 1, cy + 1, cx + k * 0.5, cy - k * 0.5)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(c)
+    p.drawPath(painter_path)
+
+
+_PAINTERS.update({
+    "array": _array_icon,
+    "stack": _stack_icon,
+    "queue": _queue_icon,
+    "linkedlist": _linked_list_icon,
+    "dictionary": _dictionary_icon,
+    "clock": _clock_small,
+    "trash": _trash,
+    "search": _search,
+    "arrows_v": _arrows_v,
+    "swap": _swap,
+    "crown": _crown,
+    "sparkle": _sparkle,
+})

@@ -10,6 +10,7 @@ class Workspace(str, Enum):
 
     PLAY = "play"
     DSA_LAB = "dsa-lab"
+    GAME_MODE = "game-mode"
 
 
 class LabPage(str, Enum):

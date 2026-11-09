@@ -50,7 +50,15 @@ def window(app):
     built.show()
     app.processEvents()
     yield built
+    # Deterministic teardown: halt animations while items are alive, then
+    # delete the C++ tree on the spot instead of leaving it to cyclic GC
+    # during a later test (this aborted CI with exit code 134).
+    import gc
+
     built.close()
+    built.deleteLater()
+    app.processEvents()
+    gc.collect()
 
 
 # --- shell & layout ---------------------------------------------------------------------
@@ -58,7 +66,7 @@ def window(app):
 
 def test_premium_window_exposes_header_workspaces_and_dashboard(window):
     assert window.windowTitle().startswith("Klondike Solitaire")
-    assert window.workspaces.count() == 2
+    assert window.workspaces.count() == 3  # play, DSA lab, game mode
     assert window.header.hint_button is window.hint_button
     assert window.header.undo_button is window.undo_button
     assert window.header.redo_button is window.redo_button
@@ -392,3 +400,169 @@ def test_scene_sync_after_engine_undo_restores_positions(window):
     assert state.stock.size() == 24
     first_stock_card = state.stock.to_list()[0].card_id
     assert window.play_workspace.scene.card_zone[first_stock_card] == "stock"
+
+
+# --- regression: functional defect fixes (review pass) -------------------------------
+
+
+def test_invalid_action_does_not_start_the_game_clock(window):
+    controller = window.game
+    assert not controller._clock.isActive()
+
+    # A rejected move must not start the clock.
+    face_down = controller.state.tableau["tableau-7"].cards_bottom_to_top()[0]
+    window.game.try_move("tableau-7", face_down.card_id, "tableau-3")
+    assert not controller._clock.isActive()
+
+    # A successful action does.
+    window.game.draw_from_stock()
+    assert controller._clock.isActive()
+    controller._clock.stop()
+
+
+def test_move_log_does_not_duplicate_moves_after_undo(window):
+    log = window.play_workspace.move_log
+    window.game.draw_from_stock()
+    window.game.draw_from_stock()
+    assert log._list.count() == 2
+
+    window.game.undo()
+    assert log._list.count() == 2  # unchanged, no duplicated row
+
+    window.game.redo()
+    assert log._list.count() == 2
+
+
+def test_lower_face_up_tableau_card_starts_a_run_selection(window):
+    from PyQt6.QtWidgets import QApplication
+
+    hint = next(
+        h for h in window.game.engine.find_hints() if h.source_pile != "stock"
+    )
+    assert window.game.try_move(hint.source_pile, hint.card_ids[0], hint.destination_pile)
+
+    # After the move some column holds >= 2 face-up cards.
+    state = window.game.state
+    column_id, cards = next(
+        (pile_id, column.cards_bottom_to_top())
+        for pile_id, column in state.tableau.items()
+        if sum(1 for c in column.cards_bottom_to_top() if c.face_up) >= 2
+    )
+    face_up = [card for card in cards if card.face_up]
+    lower_id = face_up[0].card_id
+    upper_id = face_up[-1].card_id
+
+    selection = window.selection
+    selection.click_card(column_id, lower_id, face_up=True, top_of_pile=False)
+    assert selection.card_id == lower_id
+    assert selection.source_pile == column_id
+    assert selection.selected_run() == [card.card_id for card in face_up]
+    selection.clear()
+
+
+def test_card_item_starts_a_real_qdrag_with_run_payload(window, monkeypatch):
+    from PyQt6.QtGui import QDrag
+    from PyQt6.QtCore import QByteArray
+    from solitaire.ui.premium.controllers.drag_controller import MIME_TYPE
+
+    hint = next(
+        h for h in window.game.engine.find_hints() if h.source_pile != "stock"
+    )
+    assert window.game.try_move(hint.source_pile, hint.card_ids[0], hint.destination_pile)
+
+    state = window.game.state
+    column_id, cards = next(
+        (pile_id, column.cards_bottom_to_top())
+        for pile_id, column in state.tableau.items()
+        if sum(1 for c in column.cards_bottom_to_top() if c.face_up) >= 2
+    )
+    face_up_ids = [c.card_id for c in cards if c.face_up]
+
+    captured = {}
+
+    def fake_exec(self, *args, **kwargs):
+        captured["mime"] = self.mimeData()
+        captured["ids"] = face_up_ids
+        return __import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.DropAction.IgnoreAction
+
+    monkeypatch.setattr(QDrag, "exec", fake_exec)
+
+    scene = window.play_workspace.scene
+    item = scene.card_items[face_up_ids[0]]
+    assert item.drag_provider is not None
+    assert item._start_drag() is True
+
+    payload = captured["mime"]
+    assert payload.hasFormat(MIME_TYPE)
+    import json
+
+    document = json.loads(bytes(payload.data(MIME_TYPE)))
+    assert document["card_ids"] == face_up_ids
+    assert document["source"] == column_id
+
+
+def test_many_window_lifecycles_stay_gc_safe(app):
+    """Regression for the CI exit-134 abort during garbage collection."""
+    import gc
+
+    for seed in range(3):
+        built = PremiumMainWindow(seed=seed)
+        built.show()
+        app.processEvents()
+        built.game.draw_from_stock()
+        built.game.undo()
+        built.close()
+        built.deleteLater()
+        app.processEvents()
+        gc.collect()
+
+    survivor = PremiumMainWindow(seed=99)
+    survivor.game.draw_from_stock()
+    survivor.game.undo()
+    survivor.game.redo()
+    assert survivor.game.state.move_count == 1
+    survivor.close()
+    survivor.deleteLater()
+    app.processEvents()
+    gc.collect()
+
+
+def test_latest_operation_panel_hides_internal_bookkeeping(window):
+    """Regression: the dashboard must show a player-facing operation."""
+    from solitaire.ui.premium.dsa_lab.data_provider import latest_player_operation
+
+    window.game.draw_from_stock()
+    window.game.undo()
+
+    latest = latest_player_operation(window.game.tracker)
+    assert latest is not None
+    assert latest.context == "PLAY"
+    assert "undo-history" not in (latest.pile_id or "")
+
+    dashboard = window.play_workspace.dashboard
+    dashboard.refresh()
+    assert "undo-history" not in dashboard._latest_body.text()
+    assert "APPEND_NODE" not in dashboard._latest_body.text()
+
+
+def test_game_mode_page_applies_draw_mode_and_motion_settings(window):
+    page = window.game_mode_page
+    window.open_settings()
+    assert window.workspaces.currentIndex() == 2
+    assert window.navigation.current.value == "game-mode"
+
+    page._draw_three.setChecked(True)
+    page._reduce_motion.toggle.setChecked(True)
+    page.apply()
+
+    assert window.game.draw_mode == 3
+    assert CardAnimationManager.instance().reduce_motion is True
+
+    page._draw_one.setChecked(True)
+    page._reduce_motion.toggle.setChecked(False)
+    page.apply()
+    assert window.game.draw_mode == 1
+    assert CardAnimationManager.instance().reduce_motion is False
+
+    window._close_game_mode()
+    assert window.workspaces.currentIndex() == 0

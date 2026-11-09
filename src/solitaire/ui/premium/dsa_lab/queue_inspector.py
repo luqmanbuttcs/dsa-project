@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -12,7 +13,7 @@ from PyQt6.QtWidgets import (
 )
 
 from solitaire.ui.premium.dsa_lab.data_provider import queue_report
-from solitaire.ui.premium.dsa_lab.widgets import LiveBadge, MiniCardChip, SectionTitle, StatChip
+from solitaire.ui.premium.dsa_lab.widgets import LiveBadge, MiniCardChip, PileTag, SectionTitle, StatChip
 
 
 def _clear_strip(strip_layout) -> None:
@@ -92,13 +93,15 @@ class QueueInspector(QWidget):
         _clear_strip(self._order_strip)
 
         if report.fifo_order:
-            self._order_strip.addWidget(QLabel("Front →"))
+            front_tag = PileTag("FRONT (next draw)")
+            self._order_strip.addWidget(front_tag, 0, Qt.AlignmentFlag.AlignVCenter)
             self._order_strip.addWidget(MiniCardChip(report.fifo_order[0]))
             for card_id in report.fifo_order[1:-1]:
-                self._order_strip.addWidget(MiniCardChip(card_id, face_down=True))
+                self._order_strip.addWidget(MiniCardChip.tiny(card_id, face_down=True))
             if len(report.fifo_order) > 1:
                 self._order_strip.addWidget(MiniCardChip(report.fifo_order[-1]))
-                self._order_strip.addWidget(QLabel("← Rear"))
+                rear_tag = PileTag("REAR (last in)")
+                self._order_strip.addWidget(rear_tag, 0, Qt.AlignmentFlag.AlignVCenter)
         else:
             empty = QLabel("The stock is empty.")
             empty.setObjectName("mutedText")

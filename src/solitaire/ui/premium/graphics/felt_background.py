@@ -9,8 +9,17 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
+from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtGui import (
+    QLinearGradient,
+    QColor,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRadialGradient,
+)
 from PyQt6.QtWidgets import QGraphicsItem
 
 from solitaire.ui.premium import resources
@@ -71,15 +80,48 @@ class FeltBackgroundItem(QGraphicsItem):
         key_w, key_h = int(rect.width()), int(rect.height())
         painter.drawPixmap(0, 0, _lighting_layer(key_w, key_h))
 
-        # Refined gold/green double border.
+        # --- multi-layer gold/brass frame with inner bevel -------------------
         painter.setClipping(False)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        border_path = _rounded(rect.adjusted(3, 3, -3, -3), 10)
-        painter.setPen(QPen(QColor(GOLD_DIM), 2.0))
-        painter.drawPath(border_path)
-        painter.setPen(QPen(QColor(16, 84, 44, 220), 5.0))
-        inner = _rounded(rect.adjusted(8, 8, -8, -8), 8)
-        painter.drawPath(inner)
+
+        # Outer hairline (deep bronze).
+        painter.setPen(QPen(QColor(96, 72, 20, 230), 1.4))
+        painter.drawPath(_rounded(rect.adjusted(1.5, 1.5, -1.5, -1.5), 11))
+
+        # Brass band with a vertical metallic sheen.
+        band = _rounded(rect.adjusted(3, 3, -3, -3), 10)
+        band_gradient = QLinearGradient(rect.topLeft(), QPointF(rect.left(), rect.bottom()))
+        band_gradient.setColorAt(0.0, QColor("#8C6D1D"))
+        band_gradient.setColorAt(0.22, QColor("#E7C55C"))
+        band_gradient.setColorAt(0.5, QColor("#A98420"))
+        band_gradient.setColorAt(0.78, QColor("#E2BC50"))
+        band_gradient.setColorAt(1.0, QColor("#7A5D14"))
+        painter.setPen(QPen(band_gradient, 3.4))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(band)
+
+        # Bevel: light top-left edge and dark bottom-right edge just inside
+        # the brass band, giving the tabletop physical depth.
+        bevel_rect = rect.adjusted(6, 6, -6, -6)
+        painter.setPen(QPen(QColor(255, 244, 200, 70), 1.2))
+        painter.drawPath(_rounded(bevel_rect.adjusted(0.6, 0.6, -0.6, -0.6), 9))
+        painter.setPen(QPen(QColor(0, 0, 0, 110), 1.6))
+        painter.drawPath(_rounded(bevel_rect, 9))
+
+        # Inner gold filigree hairline.
+        painter.setPen(QPen(QColor(212, 175, 55, 150), 1.0))
+        painter.drawPath(_rounded(rect.adjusted(11, 11, -11, -11), 8))
+
+        # Soft inner shadow where the felt meets the frame.
+        inner_glow = QRadialGradient(
+            rect.center().x(), rect.center().y(), max(rect.width(), rect.height()) * 0.62
+        )
+        inner_glow.setColorAt(0.0, QColor(0, 0, 0, 0))
+        inner_glow.setColorAt(0.82, QColor(0, 0, 0, 0))
+        inner_glow.setColorAt(1.0, QColor(0, 0, 0, 70))
+        painter.setClipping(True)
+        painter.setClipPath(_rounded(rect.adjusted(6, 6, -6, -6), 9))
+        painter.fillRect(rect, inner_glow)
         painter.restore()
 
 

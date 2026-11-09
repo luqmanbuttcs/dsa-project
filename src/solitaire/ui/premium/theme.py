@@ -18,6 +18,7 @@ NAVY_CHIP = "#13253D"
 GOLD = "#D4AF37"
 GOLD_BRIGHT = "#F0C75E"
 GOLD_DIM = "#8C7326"
+GOLD_DEEP = "#8C6D1D"
 GOLD_TEXT = "#E8C766"
 
 IVORY = "#FBF6E9"
@@ -82,8 +83,15 @@ QMainWindow, QWidget#appShell {{ background: {NAVY_DEEP}; }}
 
 QWidget#headerBar {{
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 {NAVY_LIGHT}, stop:1 {NAVY});
+                stop:0 #1A314F, stop:0.5 {NAVY}, stop:1 #0A1626);
     border-bottom: 2px solid {GOLD_DIM};
+}}
+
+QLabel#headerRule {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 rgba(212,175,55,0), stop:0.5 rgba(212,175,55,0.85),
+                stop:1 rgba(212,175,55,0));
+    border: none;
 }}
 
 QLabel#appTitle {{
@@ -92,6 +100,10 @@ QLabel#appTitle {{
     font-weight: bold;
     color: {TEXT_GOLD};
     background: transparent;
+}}
+
+QWidget#headerBar[compact="true"] QLabel#appTitle {{
+    font-size: 19px;
 }}
 
 QLabel#appBadge {{
@@ -104,10 +116,31 @@ QLabel#appBadge {{
     background: rgba(212, 175, 55, 0.10);
 }}
 
+QWidget#headerBar[compact="true"] QLabel#appBadge {{
+    font-size: 11px;
+    padding: 2px 8px;
+}}
+
 QFrame#metricChip {{
-    background: {NAVY_CHIP};
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #1B3050, stop:1 {NAVY_CHIP});
     border: 1px solid {NAVY_BORDER};
     border-radius: 12px;
+}}
+
+QLabel#metricValue {{
+    color: #F2EEE2;
+    font-size: 17px;
+    font-weight: bold;
+    background: transparent;
+}}
+
+QLabel#metricLabel {{
+    color: #9FB0C6;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    background: transparent;
 }}
 
 QFrame#metricChip QLabel#metricLabel {{
@@ -123,6 +156,21 @@ QFrame#metricChip QLabel#metricValue {{
     font-size: 19px;
     font-weight: bold;
     background: transparent;
+}}
+
+QWidget#headerBar[compact="true"] QFrame#metricChip QLabel#metricValue {{
+    font-size: 15px;
+}}
+
+QWidget#headerBar[compact="true"] QFrame#metricChip QLabel#metricLabel {{
+    font-size: 9px;
+    letter-spacing: 1px;
+}}
+
+QWidget#headerBar[compact="true"] QPushButton#goldButton,
+QWidget#headerBar[compact="true"] QPushButton#darkButton {{
+    font-size: 12px;
+    padding: 6px 12px;
 }}
 
 QPushButton#goldButton {{
@@ -151,6 +199,36 @@ QWidget#labTabRow {{
 QWidget#dashboardContent {{
     background: {NAVY_DEEP};
     border-left: 1px solid {NAVY_BORDER};
+}}
+
+QLabel#countBadge {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {GOLD_BRIGHT}, stop:1 {GOLD});
+    color: #241A02;
+    font-size: 12px;
+    font-weight: bold;
+    border: 1px solid {GOLD_DEEP};
+    border-radius: 11px;
+}}
+
+QPushButton#structureRow {{
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    text-align: left;
+}}
+QPushButton#structureRow:hover {{
+    background: rgba(212, 175, 55, 0.08);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+}}
+QPushButton#structureRow:pressed {{
+    background: rgba(212, 175, 55, 0.16);
+}}
+
+QLabel#structureIconChip {{
+    background: rgba(212, 175, 55, 0.10);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 9px;
 }}
 
 QPushButton#darkButton {{
@@ -278,7 +356,7 @@ QProgressBar#gameProgress {{
 }}
 QProgressBar#gameProgress::chunk {{
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 {OK_GREEN_DEEP}, stop:1 {OK_GREEN});
+                stop:0 {GOLD_BRIGHT}, stop:0.5 {GOLD}, stop:1 {GOLD_DIM});
     border-radius: 8px;
 }}
 
@@ -290,4 +368,34 @@ QLabel#dialogTitle {{
     color: {TEXT_GOLD};
 }}
 QRadioButton, QCheckBox {{ color: {TEXT_PRIMARY}; font-size: 13px; spacing: 8px; }}
+
+
+/* Move log rows */
+QListWidget#moveLog {{
+    background: {NAVY_DEEP};
+    border: 1px solid {NAVY_BORDER};
+    border-radius: 8px;
+    padding: 2px;
+}}
+QListWidget#moveLog::item {{
+    border-bottom: 1px solid rgba(36, 57, 90, 0.6);
+    padding: 3px 6px;
+    color: {TEXT_PRIMARY};
+}}
+QListWidget#moveLog::item:selected {{ background: rgba(212, 175, 55, 0.12); }}
+QLabel#moveLogRow {{ font-size: 12.5px; }}
+
+QPushButton#modeCard {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #16294A, stop:1 #0F1E3C);
+    border: 2px solid #24395A;
+    border-radius: 14px;
+    text-align: left;
+}}
+QPushButton#modeCard:hover {{ border-color: #8C7326; }}
+QPushButton#modeCard:checked {{
+    border: 2px solid #F0C75E;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #1D3559, stop:1 #14274A);
+}}
 """

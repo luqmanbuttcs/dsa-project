@@ -34,9 +34,6 @@ from solitaire.ui.premium.graphics.waste_item import WasteGraphicsItem
 from solitaire.ui.premium.theme import (
     CARD_H,
     CARD_W,
-    FAN_FACE_DOWN,
-    FAN_FACE_UP,
-    TABLEAU_GAP,
     WASTE_FAN,
 )
 
@@ -45,11 +42,17 @@ TOP_ROW_H = float(CARD_H)
 COLUMNS_TOP = TOP_ROW_H + 62.0
 SCENE_MARGIN_BOTTOM = 26.0
 
-CONTENT_W = MARGIN * 2 + 7 * CARD_W + 6 * TABLEAU_GAP
-CONTENT_H = COLUMNS_TOP + (FAN_FACE_DOWN * 6 + FAN_FACE_UP * 6 + CARD_H) + SCENE_MARGIN_BOTTOM
-
+TABLEAU_GAP = 24
 FOUNDATION_GAP = 20.0
 STOCK_WASTE_GAP = 52.0
+MIN_GAP = 8.0
+MAX_GAP = 56.0
+
+# Minimum horizontal footprint of the board at full card size. The view
+# scales the scene down slightly below this width instead of cropping cards.
+MIN_CONTENT_W = MARGIN * 2 + 7 * CARD_W + 6 * MIN_GAP
+CONTENT_W = MARGIN * 2 + 7 * CARD_W + 6 * TABLEAU_GAP
+CONTENT_H = COLUMNS_TOP + (14 * 6 + 30 * 6 + CARD_H) + SCENE_MARGIN_BOTTOM
 
 
 class GameBoardScene(QGraphicsScene):
@@ -62,46 +65,27 @@ class GameBoardScene(QGraphicsScene):
         self._animation = None  # set via set_animation_manager
         self._drag_active = False
 
-        self.setSceneRect(0.0, 0.0, float(CONTENT_W), float(CONTENT_H))
-        self.setBackgroundBrush(QColor(8, 18, 12))
+        # Dynamic layout state (recomputed by `relayout`).
+        self.fan_down = 14.0
+        self.fan_up = 30.0
+        self._slots: dict[str, QPointF] = {}
 
+        self.setBackgroundBrush(QColor(8, 18, 12))
         self.felt = FeltBackgroundItem(float(CONTENT_W), float(CONTENT_H))
         self.addItem(self.felt)
 
-        # --- slot geometry ---------------------------------------------------
-        self._slots: dict[str, QPointF] = {}
-        x = MARGIN
-        self._slots["stock"] = QPointF(x, 16.0)
-        self._slots["waste"] = QPointF(x + CARD_W + STOCK_WASTE_GAP, 16.0)
-
-        foundations_width = 4 * CARD_W + 3 * FOUNDATION_GAP
-        foundation_x = float(CONTENT_W) - MARGIN - foundations_width
-        for index, suit in enumerate(Suit):
-            self._slots[f"foundation-{suit.code.lower()}"] = QPointF(
-                foundation_x + index * (CARD_W + FOUNDATION_GAP), 16.0
-            )
-
-        for index in range(1, 8):
-            column_id = f"tableau-{index}"
-            self._slots[column_id] = QPointF(
-                MARGIN + (index - 1) * (CARD_W + TABLEAU_GAP), COLUMNS_TOP
-            )
-
-        # --- slot items ---------------------------------------------------------
+        # --- slot items (positions are set by `relayout`) -----------------------
         self.stock_item = StockGraphicsItem()
-        self.stock_item.setPos(self._slots["stock"])
         self.stock_item.on_clicked = lambda _item: self._game.draw_from_stock()
         self.addItem(self.stock_item)
 
         self.waste_item = WasteGraphicsItem()
-        self.waste_item.setPos(self._slots["waste"])
         self.waste_item.on_clicked = lambda _item: self._selection.clear()
         self.addItem(self.waste_item)
 
         self.foundation_items: dict[str, FoundationGraphicsItem] = {}
         for suit in Suit:
             item = FoundationGraphicsItem(suit)
-            item.setPos(self._slots[f"foundation-{suit.code.lower()}"])
             item.on_clicked = lambda clicked: self._on_slot_clicked(clicked.pile_id)
             self.foundation_items[item.pile_id] = item
             self.addItem(item)
@@ -110,7 +94,6 @@ class GameBoardScene(QGraphicsScene):
         for index in range(1, 8):
             column_id = f"tableau-{index}"
             item = TableauColumnGraphicsItem(column_id)
-            item.setPos(self._slots[column_id])
             item.on_clicked = lambda clicked: self._on_slot_clicked(clicked.pile_id)
             self.tableau_items[column_id] = item
             self.addItem(item)
@@ -121,11 +104,6 @@ class GameBoardScene(QGraphicsScene):
         font.setBold(True)
         self._foundation_label.setFont(font)
         self._foundation_label.setBrush(QColor("#E8C766"))
-        label_center = foundation_x + foundations_width / 2.0
-        label_rect = self._foundation_label.boundingRect()
-        self._foundation_label.setPos(
-            label_center - label_rect.width() / 2.0, TOP_ROW_H + 20.0
-        )
         self.addItem(self._foundation_label)
 
         # --- card items -------------------------------------------------------
@@ -133,10 +111,87 @@ class GameBoardScene(QGraphicsScene):
         self.card_zone: dict[str, str] = {}
         self.card_top: dict[str, bool] = {}
         self._trails = []
+
+        self.relayout(float(CONTENT_W), float(CONTENT_H))
+
+    # --- responsive layout ------------------------------------------------------
+    def relayout(self, width: float, height: float) -> None:
+        """Recompute the whole board geometry for a viewport of `width`x`height`
+        scene units so the felt table fills the game viewport edge to edge.
+
+        Card dimensions never shrink inside the scene; the view applies a
+        mild uniform scale only when even the minimum footprint cannot fit.
+        """
+        width = max(width, MIN_CONTENT_W)
+        height = max(height, 480.0)
+
+        content_w = 7 * CARD_W + 6 * MIN_GAP
+        # Distribute extra width into the gaps, capped for taste.
+        free = width - 2 * MARGIN - 7 * CARD_W
+        gap = max(MIN_GAP, min(MAX_GAP, free / 6.0))
+        content_w = 7 * CARD_W + 6 * gap
+        x0 = max(MARGIN, (width - content_w) / 2.0)
+
+        top_y = 18.0
+        columns_top = CARD_H + 46.0
+
+        self._slots["stock"] = QPointF(x0, top_y)
+        self._slots["waste"] = QPointF(x0 + CARD_W + STOCK_WASTE_GAP, top_y)
+
+        foundations_width = 4 * CARD_W + 3 * FOUNDATION_GAP
+        foundation_x = x0 + content_w - foundations_width
+        for index, suit in enumerate(Suit):
+            self._slots[f"foundation-{suit.code.lower()}"] = QPointF(
+                foundation_x + index * (CARD_W + FOUNDATION_GAP), top_y
+            )
+
+        for index in range(1, 8):
+            self._slots[f"tableau-{index}"] = QPointF(
+                x0 + (index - 1) * (CARD_W + gap), columns_top
+            )
+
+        # Fan spacing adapts to the available column height so even tall
+        # piles stay inside the felt; cards themselves never shrink here.
+        bottom_reserve = 14.0
+        column_available = height - columns_top - bottom_reserve
+        self.fan_down = 13.0
+        self.fan_up = (column_available - CARD_H - 6 * self.fan_down) / 6.0
+        if self.fan_up < 14.0:
+            self.fan_up = 14.0
+            self.fan_down = max(8.0, (column_available - CARD_H - 6 * self.fan_up) / 6.0)
+        self.fan_up = min(self.fan_up, 30.0)
+
+        self.felt.set_size(float(width), float(height))
+        self.setSceneRect(0.0, 0.0, float(width), float(height))
+
+        self.stock_item.setPos(self._slots["stock"])
+        self.waste_item.setPos(self._slots["waste"])
+        for suit in Suit:
+            pile_id = f"foundation-{suit.code.lower()}"
+            self.foundation_items[pile_id].setPos(self._slots[pile_id])
+        for index in range(1, 8):
+            self.tableau_items[f"tableau-{index}"].setPos(self._slots[f"tableau-{index}"])
+
+        label_rect = self._foundation_label.boundingRect()
+        label_center = foundation_x + foundations_width / 2.0
+        self._foundation_label.setPos(
+            label_center - label_rect.width() / 2.0, CARD_H + 14.0
+        )
+
         self.sync(animate=False)
 
     def set_animation_manager(self, manager) -> None:
         self._animation = manager
+
+    def prepare_shutdown(self) -> None:
+        """Stop all cosmetic animation before the widget tree is destroyed.
+
+        Called from the main window's closeEvent so teardown happens while
+        every item is alive and idle — never during Python garbage
+        collection of a partially destroyed Qt object graph.
+        """
+        if self._animation is not None:
+            self._animation.interrupt_all()
 
     # --- projection -----------------------------------------------------------
     def slot_position(self, pile_id: str) -> QPointF:
@@ -192,7 +247,7 @@ class GameBoardScene(QGraphicsScene):
             for card_index, card in enumerate(column.cards_bottom_to_top()):
                 item = self._item_for(card)
                 placements.append((item, QPointF(pos.x(), y), 10.0 + card_index, card.face_up))
-                y += FAN_FACE_DOWN if not card.face_up else FAN_FACE_UP
+                y += self.fan_down if not card.face_up else self.fan_up
                 seen.add(card.card_id)
 
         # Drop items that vanished from play (defensive; all 52 should stay).
@@ -265,7 +320,13 @@ class GameBoardScene(QGraphicsScene):
         self.card_top = top_map
 
         for card_id, item in self.card_items.items():
-            item.set_interactive(self.card_top.get(card_id, False))
+            pile_id = self.card_zone.get(card_id)
+            if pile_id is not None and pile_id.startswith("tableau-"):
+                # Any face-up card in a tableau column can start a run drag.
+                interactive = item.card.face_up
+            else:
+                interactive = self.card_top.get(card_id, False)
+            item.set_interactive(interactive)
 
     def refresh_highlights(self) -> None:
         """Apply selection + legal destination effects from the selection."""
@@ -275,13 +336,12 @@ class GameBoardScene(QGraphicsScene):
         for pile_id, item in self.foundation_items.items():
             item.set_legal_target(pile_id in legal)
 
-        selected_id = self._selection.card_id
+        run_ids = set(self._selection.selected_run())
         for card_id, item in self.card_items.items():
-            if selected_id and card_id == selected_id:
-                item.set_highlight(1.0)
-            else:
-                if item.get_highlight() > 0.0:
-                    item.set_highlight(0.0)
+            if run_ids:
+                item.set_highlight(1.0 if card_id in run_ids else 0.0)
+            elif item.get_highlight() > 0.0:
+                item.set_highlight(0.0)
 
         # Gold ring on destination top cards (occupied legal targets).
         state = self._game.state
@@ -322,11 +382,35 @@ class GameBoardScene(QGraphicsScene):
         if item is None:
             item = CardGraphicsItem(card)
             item.on_clicked = self._on_card_clicked
+            item.drag_provider = self._drag_payload_for
             self.card_items[card.card_id] = item
             self.addItem(item)
         else:
             item.refresh_card(card)
         return item
+
+    def _drag_payload_for(self, card_id: str) -> tuple[list[str], str] | None:
+        """Resolve a card press into a draggable run (card_ids, source pile)."""
+        pile_id = self.card_zone.get(card_id)
+        if pile_id is None or pile_id == "stock":
+            return None
+        if pile_id.startswith("foundation-"):
+            return None  # foundations are fixed home piles
+        if pile_id == "waste":
+            waste = self._game.state.waste
+            if waste.is_empty() or waste.peek().card_id != card_id:
+                return None
+            return [card_id], pile_id
+        column = self._game.state.tableau.get(pile_id)
+        if column is None:
+            return None
+        cards = column.cards_bottom_to_top()
+        for position, card in enumerate(cards):
+            if card.card_id == card_id:
+                if not card.face_up:
+                    return None
+                return [entry.card_id for entry in cards[position:]], pile_id
+        return None
 
     def _on_card_clicked(self, item: CardGraphicsItem) -> None:
         card_id = item.card_id

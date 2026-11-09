@@ -18,7 +18,10 @@ class NodeDiagram(QWidget):
         self._nodes = ()
         self._head = None
         self._tail = None
-        self.setMinimumHeight(150)
+        self.setMinimumHeight(260)
+        from PyQt6.QtWidgets import QSizePolicy
+
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def set_data(self, nodes, head_card_id, tail_card_id) -> None:
         self._nodes = nodes
@@ -156,11 +159,10 @@ class LinkedListInspector(QWidget):
         layout.addWidget(explanation)
 
         self._diagram = NodeDiagram()
-        layout.addWidget(self._diagram)
+        layout.addWidget(self._diagram, 1)
         self._valid_label = QLabel("Chain integrity: valid")
         self._valid_label.setObjectName("mutedText")
         layout.addWidget(self._valid_label)
-        layout.addStretch(1)
 
     def refresh(self) -> None:
         column_id = self._column_selector.currentData() or "tableau-1"

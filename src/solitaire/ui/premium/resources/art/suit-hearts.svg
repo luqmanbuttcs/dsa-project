@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="suitFill" x1="0" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#D24343"/><stop offset="1" stop-color="#8E1B1B"/></linearGradient>
+    <linearGradient id="suitFill" x1="0" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#D24A4A"/><stop offset="1" stop-color="#8E1B1B"/></linearGradient>
+    <radialGradient id="gloss" cx="0.35" cy="0.28" r="0.75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.42"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <path d="M50 90 C22 68 8 50 8 32 C8 16 19 7 32 7 C41 7 48 12 50 20 C52 12 59 7 68 7 C81 7 92 16 92 32 C92 50 78 68 50 90 Z" fill="url(#suitFill)"/>
-  <ellipse cx="36" cy="26" rx="14" ry="8" fill="#FFFFFF" opacity="0.22"
-           transform="rotate(-24 36 26)"/>
+  <path d="M50 90 C22 68 8 50 8 32 C8 16 19 7 32 7 C41 7 48 12 50 20 C52 12 59 7 68 7 C81 7 92 16 92 32 C92 50 78 68 50 90 Z" fill="none" stroke="#000000" stroke-opacity="0.35" stroke-width="2.4"/>
+  <g clip-path="none" opacity="0.9">
+    <ellipse cx="37" cy="27" rx="15" ry="8" fill="#FFFFFF" opacity="0.20" transform="rotate(-24 37 27)"/>
+  </g>
+  <rect x="0" y="0" width="100" height="100" fill="url(#gloss)"/>
 </svg>

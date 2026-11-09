@@ -162,23 +162,24 @@ class GameController(QObject):
 
     # --- player actions ---------------------------------------------------
     def draw_from_stock(self) -> None:
-        self._ensure_clock()
         try:
             drawn = self._engine.draw_from_stock()
         except NoCardsAvailableError as error:
+            # Invalid action: the game clock must NOT start.
             self.feedback.emit("No Cards Left", str(error), FEEDBACK_ERROR)
             return
         except InvalidMoveError as error:  # pragma: no cover - defensive
             self.feedback.emit("Invalid Draw", str(error), FEEDBACK_ERROR)
             return
 
+        self._ensure_clock()
         noun = "card" if len(drawn) == 1 else "cards"
         self.feedback.emit(
             "Stock Draw",
             f"Drew {len(drawn)} {noun} from the Stock to the Waste.",
             FEEDBACK_SUCCESS,
         )
-        self._after_action()
+        self._after_action(announce_move=True)
 
     def try_move(self, source_pile: str, card_id: str | None, destination_pile: str) -> bool:
         """Resolve one player move request through the engine.
@@ -193,7 +194,6 @@ class GameController(QObject):
             )
             return False
 
-        self._ensure_clock()
         try:
             if source_pile == "waste":
                 if destination_pile.startswith("foundation-"):
@@ -214,6 +214,8 @@ class GameController(QObject):
             else:
                 raise _missing_card_error()
         except InvalidMoveError as error:
+            # Invalid action: the engine rejected before mutating and the
+            # game clock must NOT start on a rejected move.
             reason = error.result.reason.value if error.result.reason else "Invalid move."
             self.feedback.emit("Invalid Move", reason, FEEDBACK_ERROR)
             self.operations_changed.emit()
@@ -222,20 +224,21 @@ class GameController(QObject):
             self.feedback.emit("Game Over", str(error), FEEDBACK_INFO)
             return False
 
-        self._after_action()
+        self._ensure_clock()
+        self._after_action(announce_move=True)
         return True
 
     def undo(self) -> None:
         if self._engine.undo():
             self.feedback.emit("Undo", "The last action was reverted.", FEEDBACK_INFO)
-            self._after_action()
+            self._after_action(announce_move=False)
         else:
             self.feedback.emit("Undo", "There is nothing to undo.", FEEDBACK_INFO)
 
     def redo(self) -> None:
         if self._engine.redo():
             self.feedback.emit("Redo", "The undone action was reapplied.", FEEDBACK_INFO)
-            self._after_action()
+            self._after_action(announce_move=False)
         else:
             self.feedback.emit("Redo", "There is nothing to redo.", FEEDBACK_INFO)
 
@@ -320,10 +323,14 @@ class GameController(QObject):
         return total, 52
 
     # --- internals ----------------------------------------------------------
-    def _after_action(self) -> None:
-        history = self._engine.move_history
-        if history:
-            self.move_logged.emit(history[-1])
+    def _after_action(self, *, announce_move: bool) -> None:
+        # Only genuine player actions append a log row. Undo/redo TRUNCATE or
+        # re-extend the engine history, so re-emitting `history[-1]` here
+        # would duplicate an earlier player move in the Move Log.
+        if announce_move:
+            history = self._engine.move_history
+            if history:
+                self.move_logged.emit(history[-1])
         self.operations_changed.emit()
         self.state_changed.emit("action")
         if self._state.status is GameStatus.WON:

@@ -14,7 +14,7 @@ reused across scene refreshes and never mutate game state.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QRectF, Qt, pyqtProperty
+from PyQt6.QtCore import QPoint, QRectF, Qt, pyqtProperty
 from PyQt6.QtGui import (
     QColor,
     QFont,
@@ -30,6 +30,8 @@ from solitaire.domain.card import Card, Rank
 from solitaire.ui.premium import resources
 from solitaire.ui.premium.graphics.effects.highlights import paint_card_shadow, paint_glow
 from solitaire.ui.premium.theme import CARD_H, CARD_RADIUS, CARD_W
+
+DRAG_THRESHOLD = 12.0
 
 IVORY_TOP = "#FDF9EE"
 IVORY_BOTTOM = "#EFE4C6"
@@ -59,6 +61,8 @@ class CardGraphicsItem(QGraphicsObject):
         self._error_pulse = 0.0
         self._interactive = True
         self.on_clicked = None  # callback(item) wired by the scene
+        self.drag_provider = None  # callback(card_id) -> (card_ids, pile) | None
+        self._press_pos: QPoint | None = None
         self.setAcceptHoverEvents(True)
         self.setZValue(10.0)
 
@@ -286,12 +290,49 @@ class CardGraphicsItem(QGraphicsObject):
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if self._interactive and event.button() == Qt.MouseButton.LeftButton:
+            self._press_pos = event.position().toPoint()
             event.accept()
             return
         super().mousePressEvent(event)
 
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        """Start a real QDrag once the press becomes a deliberate drag."""
+        if (
+            self._interactive
+            and self._press_pos is not None
+            and event.buttons() & Qt.MouseButton.LeftButton
+            and self.drag_provider is not None
+        ):
+            distance = (event.position().toPoint() - self._press_pos).manhattanLength()
+            if distance >= DRAG_THRESHOLD:
+                self._press_pos = None
+                if self._start_drag():
+                    event.accept()
+                    return
+        super().mouseMoveEvent(event)
+
+    def _start_drag(self) -> bool:
+        """Begin a QDrag carrying the selected run; True when one started."""
+        payload = self.drag_provider(self.card_id)
+        if not payload:
+            return False
+        from PyQt6.QtGui import QDrag
+        from solitaire.ui.premium.controllers.drag_controller import create_payload
+
+        card_ids, source_pile = payload
+        drag = QDrag(self)
+        drag.setMimeData(create_payload(card_ids, source_pile))
+        drag.setHotSpot(QPoint(24, 24))
+        self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        try:
+            drag.exec(Qt.DropAction.MoveAction)
+        finally:
+            self.unsetCursor()
+        return True
+
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         if self._interactive and event.button() == Qt.MouseButton.LeftButton:
+            self._press_pos = None
             if self.isUnderMouse() and self.on_clicked is not None:
                 self.on_clicked(self)
             event.accept()

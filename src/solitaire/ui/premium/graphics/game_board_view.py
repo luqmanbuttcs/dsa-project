@@ -1,40 +1,52 @@
-"""QGraphicsView hosting the casino board with responsive scaling."""
+"""QGraphicsView hosting the casino board with responsive relayout.
+
+The scene geometry is recomputed for the actual viewport on every resize, so
+the emerald felt fills the whole game area edge to edge (no letterbox bands).
+A mild uniform scale is applied only when the viewport is narrower than the
+minimum full-size footprint, keeping every card readable and uncropped.
+"""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QGraphicsView
 
-from solitaire.ui.premium.graphics.game_board_scene import CONTENT_H, CONTENT_W
+from solitaire.ui.premium.graphics.game_board_scene import MIN_CONTENT_W
 
 
 class GameBoardView(QGraphicsView):
-    """Scales the logical board to the available viewport, no scrollbars."""
+    """Fills the available viewport with the felt table; no scrollbars."""
 
     def __init__(self, scene, parent=None) -> None:
         super().__init__(scene, parent)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        from PyQt6.QtGui import QPainter
-
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setAcceptDrops(True)
-        self.setSceneRect(0, 0, float(CONTENT_W), float(CONTENT_H))
-        self.setStyleSheet("background: transparent; border: none;")
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet("background: transparent; border: none;")
 
     def fit_to_viewport(self) -> None:
         viewport_size = self.viewport().size()
         available_w = max(1, viewport_size.width() - 8)
         available_h = max(1, viewport_size.height() - 8)
-        scale = min(available_w / float(CONTENT_W), available_h / float(CONTENT_H))
-        scale = max(0.45, min(scale, 1.18))
+
+        # Scale only below the minimum full-size footprint; above it the
+        # scene stretches 1:1 and the felt occupies the entire viewport.
+        scale = min(1.0, available_w / float(MIN_CONTENT_W))
+        scale = max(scale, 0.62)
+
+        scene_w = available_w / scale
+        scene_h = available_h / scale
+        self.scene().relayout(scene_w, scene_h)
+
         self.resetTransform()
         self.scale(scale, scale)
-        self.centerOn(float(CONTENT_W) / 2.0, float(CONTENT_H) / 2.0)
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)

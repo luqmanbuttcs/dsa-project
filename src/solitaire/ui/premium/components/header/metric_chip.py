@@ -16,13 +16,15 @@ class MetricChip(QFrame):
         super().__init__(parent)
         self.setObjectName("metricChip")
         self.setFixedHeight(58)
-        self.setMinimumWidth(118)
+        self.setMinimumWidth(112)
+        self._icon_name = icon_name
+        self._compact = False
 
-        icon_label = QLabel()
-        icon_label.setPixmap(icon_pixmap(icon_name, 24))
-        icon_label.setFixedSize(28, 28)
-        icon_label.setScaledContents(True)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.icon_label = QLabel()
+        self.icon_label.setPixmap(icon_pixmap(icon_name, 24))
+        self.icon_label.setFixedSize(26, 26)
+        self.icon_label.setScaledContents(True)
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.value_label = QLabel(value)
         self.value_label.setObjectName("metricValue")
@@ -37,11 +39,21 @@ class MetricChip(QFrame):
         text_column.addWidget(self.label_label)
         text_column.addWidget(self.value_label)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 8, 14, 8)
-        layout.setSpacing(10)
-        layout.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
-        layout.addLayout(text_column)
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(13, 8, 13, 8)
+        self._layout.setSpacing(9)
+        self._layout.addWidget(self.icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._layout.addLayout(text_column)
 
     def set_value(self, value: str) -> None:
         self.value_label.setText(value)
+
+    def set_compact(self, compact: bool) -> None:
+        """Tighter footprint used below the header compact threshold."""
+        if compact == self._compact:
+            return
+        self._compact = compact
+        self.setMinimumWidth(88 if compact else 112)
+        self.icon_label.setPixmap(icon_pixmap(self._icon_name, 19 if compact else 24))
+        self._layout.setContentsMargins(9, 6, 9, 6)
+        self._layout.setSpacing(6)

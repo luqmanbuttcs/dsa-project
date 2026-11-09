@@ -43,6 +43,20 @@ def latest_operation(tracker: OperationTracker) -> OperationEvent | None:
     return events[-1] if events else None
 
 
+def latest_player_operation(tracker: OperationTracker) -> OperationEvent | None:
+    """The most recent *player-facing* event.
+
+    Internal bookkeeping (UNDO / REDO / HISTORY contexts that restore piles
+    node by node) is real tracker data but is not what a player did. The
+    dashboard surfaces this view; the DSA Lab timeline still shows every
+    event.
+    """
+    for event in reversed(tracker.events):
+        if event.context == "PLAY":
+            return event
+    return None
+
+
 def events_for_structure(tracker: OperationTracker, structure: StructureName) -> tuple[OperationEvent, ...]:
     return tuple(event for event in tracker.events if event.structure is structure)
 

@@ -81,7 +81,7 @@ class DsaLabWorkspace(QWidget):
         self.stack = QStackedWidget(self)
         layout.addWidget(self.stack, 1)
 
-        self._register(LabPage.OVERVIEW, OverviewPage(game))
+        self._register(LabPage.OVERVIEW, OverviewPage(game, on_inspect=self.show_page))
         self._register(LabPage.ARRAY, ArrayInspector(game))
         self._register(LabPage.STACK, StackInspector(game))
         self._register(LabPage.QUEUE, QueueInspector(game))
