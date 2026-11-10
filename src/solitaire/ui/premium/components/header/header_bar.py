@@ -146,10 +146,18 @@ class HeaderBar(QFrame):
         rule.setObjectName("headerRule")
         return rule
 
-    def set_metrics(self, time: str, moves: str, score: str) -> None:
+    def set_metrics(
+        self,
+        time: str,
+        moves: str,
+        score: str,
+        *,
+        flash_moves: str | None = None,
+        flash_score: str | None = None,
+    ) -> None:
         self.time_chip.set_value(time)
-        self.moves_chip.set_value(moves)
-        self.score_chip.set_value(score)
+        self.moves_chip.set_value(moves, flash=flash_moves)
+        self.score_chip.set_value(score, flash=flash_score)
 
     # --- responsive mode ----------------------------------------------------
     def resizeEvent(self, event) -> None:  # noqa: N802

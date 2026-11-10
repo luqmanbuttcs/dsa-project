@@ -113,6 +113,7 @@ class GameModePage(QWidget):
 
     def __init__(self, game, *, draw_mode: int, reduce_motion: bool,
                  speed_multiplier: float, show_sidebar: bool,
+                 sound_enabled: bool = True, light_sweep: bool = True,
                  on_show_sidebar, on_new_game, on_back, parent=None) -> None:
         super().__init__(parent)
         self._game = game
@@ -198,6 +199,22 @@ class GameModePage(QWidget):
             show_sidebar,
         )
         motion_layout.addWidget(self._show_sidebar)
+
+        self._sound = ToggleRow(
+            "Sound effects",
+            "Soft card and celebration sounds. Everything degrades silently "
+            "when audio is unavailable.",
+            sound_enabled,
+        )
+        motion_layout.addWidget(self._sound)
+
+        self._light_sweep = ToggleRow(
+            "Ambient light sweep",
+            "A very slow, subtle sheen drifting across the felt. Automatically "
+            "off while Reduce Motion is enabled.",
+            light_sweep,
+        )
+        motion_layout.addWidget(self._light_sweep)
 
         speed_row = QHBoxLayout()
         speed_label_column = QVBoxLayout()
@@ -292,6 +309,14 @@ class GameModePage(QWidget):
         return self._show_sidebar.checked
 
     @property
+    def sound_enabled(self) -> bool:
+        return self._sound.checked
+
+    @property
+    def light_sweep(self) -> bool:
+        return self._light_sweep.checked
+
+    @property
     def speed_multiplier(self) -> float:
         return self._speed_slider.value() / 10.0
 
@@ -309,3 +334,5 @@ class GameModePage(QWidget):
         settings.setValue("reduce_motion", self.reduce_motion)
         settings.setValue("show_sidebar", self.show_sidebar)
         settings.setValue("animation_speed", self.speed_multiplier)
+        settings.setValue("sound_enabled", self.sound_enabled)
+        settings.setValue("light_sweep", self.light_sweep)

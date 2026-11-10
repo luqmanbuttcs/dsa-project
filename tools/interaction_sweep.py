@@ -293,6 +293,34 @@ def main() -> int:
     window.open_play_workspace()
     pump()
 
+    # -- 7b. game-feel surfaces: victory overlay, ambience toggles -------------------
+    stage("stage 7b: victory overlay + ambience/sound toggles")
+    window.victory_overlay.present(
+        window.game.state.score,
+        window.game.state.move_count,
+        window.game.elapsed_seconds,
+        reduce_motion=False,
+    )
+    pump(4)
+    assert window.victory_overlay.isVisible(), "victory overlay must show"
+    window.victory_overlay.dismiss()
+    pump(2)
+    assert not window.victory_overlay.isVisible(), "victory overlay must dismiss"
+    scene = window.play_workspace.scene
+    scene.apply_reduce_motion(True)
+    pump(2)
+    scene.apply_reduce_motion(False)
+    pump(2)
+    page = window.game_mode_page
+    page._sound.toggle.setChecked(False)
+    page._sound.toggle.setChecked(True)
+    pump(2)
+    page._light_sweep.toggle.setChecked(False)
+    page._light_sweep.toggle.setChecked(True)
+    pump(2)
+    window.play_workspace.sound.play("card_place")  # degrade-silently path
+    pump(2)
+
     # -- 8. resize / relayout --------------------------------------------------------
     stage("stage 8: resize to minimum and back")
     window.resize(1280, 800)

@@ -1001,6 +1001,10 @@ def test_real_mouse_click_on_card_selects_instead_of_aborting(app, window):
     window.game.new_game(draw_count=1, announce=False)
     window.game.draw_from_stock()
     app.processEvents()
+    # Settle the deal/draw choreography so the click targets the card's
+    # final resting position (this test checks click selection, not timing).
+    window.play_workspace.scene.settle_all()
+    app.processEvents()
 
     view = window.play_workspace.findChildren(QGraphicsView)[0]
     scene = view.scene()
@@ -1235,3 +1239,150 @@ def test_chip_pill_fits_inside_item_bounding_rect(window):
     scene = window.play_workspace.scene
     for item in (scene.stock_item, scene.waste_item):
         assert item.boundingRect().contains(item.chip_rect())
+
+
+# --- game-feel choreography (deal, bursts, victory, metrics, ambience) -------------------
+
+
+def test_deal_sequence_is_pure_projection(app, window):
+    """The new-game dealing choreography never mutates engine state."""
+    scene = window.play_workspace.scene
+    window.game.new_game(draw_count=1, announce=False)
+    app.processEvents()
+    before = window.game.state.move_count
+    stock_before = len(window.game.state.stock.to_list())
+
+    # Sequence is already running after new_game; let it work.
+    for _ in range(6):
+        app.processEvents()
+    scene.settle_all()
+    app.processEvents()
+
+    assert window.game.state.move_count == before
+    assert len(window.game.state.stock.to_list()) == stock_before
+    # All 52 cards sit at their authoritative engine-derived positions.
+    for card_id, item in scene.card_items.items():
+        zone = scene.card_zone[card_id]
+        if not zone.startswith("tableau-"):
+            continue
+        slot = scene.slot_position(zone)
+        assert abs(item.pos().x() - slot.x()) < 0.6
+
+
+def test_deal_sequence_skipped_under_reduce_motion(app, window):
+    """Reduce Motion: new games appear fully dealt, instantly playable."""
+    scene = window.play_workspace.scene
+    manager = window.play_workspace.animation
+    manager.reduce_motion = True
+    try:
+        window.game.new_game(draw_count=1, announce=False)
+        app.processEvents()
+        scene.settle_all()
+        app.processEvents()
+        # Every tableau card is already at its column x position.
+        for card_id, item in scene.card_items.items():
+            zone = scene.card_zone[card_id]
+            if zone.startswith("tableau-"):
+                assert abs(item.pos().x() - scene.slot_position(zone).x()) < 0.6
+    finally:
+        manager.reduce_motion = False
+
+
+def test_foundation_landing_spawns_a_gold_burst(app, window):
+    """A card entering a Foundation triggers the celebration burst."""
+    import gc
+
+    from solitaire.ui.premium.graphics.effects.particle_burst import ParticleBurstItem
+
+    # Seed 3 deals a board where one draw exposes a foundation play.
+    built = PremiumMainWindow(seed=3)
+    built.show()
+    app.processEvents()
+    try:
+        built.game.draw_from_stock()
+        app.processEvents()
+        built.play_workspace.scene.settle_all()
+        app.processEvents()
+        top = built.game.state.waste.peek()
+        foundations = [
+            p
+            for p in built.game.legal_destinations("waste", top.card_id)
+            if p.startswith("foundation-")
+        ]
+        if not foundations:
+            pytest.skip("seed 3 board changed unexpectedly")
+        scene = built.play_workspace.scene
+        assert built.game.try_move("waste", top.card_id, foundations[0])
+        app.processEvents()
+        bursts = [item for item in scene.items() if isinstance(item, ParticleBurstItem)]
+        assert bursts, "foundation landing must spawn the celebration burst"
+        scene.settle_all()
+        for _ in range(30):
+            app.processEvents()
+    finally:
+        built.close()
+        built.deleteLater()
+        app.processEvents()
+        gc.collect()
+
+
+def test_metric_chip_flashes_on_change(app, window):
+    """Moves/Score chips pulse briefly when their value changes."""
+    chip = window.header.moves_chip
+    changed = chip.set_value("7", flash="cool")
+    assert changed
+    app.processEvents()
+    assert chip._flash_animation.state() == chip._flash_animation.state().Running or chip._flash > 0.0
+    # No change -> no flash.
+    assert chip.set_value("7") is False
+
+
+def test_victory_overlay_presents_and_dismisses(app, window):
+    """The victory overlay shows real stats and its buttons work."""
+    overlay = window.victory_overlay
+    overlay.present(score=1520, moves=118, seconds=3661, reduce_motion=True)
+    app.processEvents()
+    assert overlay.isVisible()
+    assert overlay._stat_labels["score"].text() == "1520"
+    assert overlay._stat_labels["moves"].text() == "118"
+    assert overlay._stat_labels["time"].text() == "61:01"
+    overlay.play_on_button.click()
+    app.processEvents()
+    assert not overlay.isVisible()
+    # Present again and dismiss via the new-game action (engine untouched
+    # by the overlay itself).
+    overlay.present(score=10, moves=2, seconds=3, reduce_motion=True)
+    overlay.new_game_button.click()
+    app.processEvents()
+    assert not overlay.isVisible()
+
+
+def test_sound_manager_toggles_and_degrades_silently(app, window):
+    """Audio is optional: toggling and playing never crashes offscreen."""
+    sound = window.play_workspace.sound
+    original = sound.enabled
+    try:
+        sound.set_enabled(False)
+        sound.play("card_place")  # disabled: no-op
+        sound.set_enabled(True)
+        sound.play("victory")  # may be unavailable: silent no-op
+        app.processEvents()
+    finally:
+        sound.set_enabled(original)
+    settings_value = window.play_workspace.sound.enabled
+    assert settings_value == original
+
+
+def test_light_sweep_respects_reduce_motion(app, window):
+    """The ambient sweep arms/disarms with Reduce Motion."""
+    scene = window.play_workspace.scene
+    scene.apply_reduce_motion(True)
+    assert scene.light_sweep.enabled is False
+    assert scene._sweep_timer.isActive() is False
+    scene.apply_reduce_motion(False)
+    assert scene.light_sweep.enabled is True
+    assert scene._sweep_timer.isActive() is True
+    phase_before = scene.light_sweep._phase
+    scene.light_sweep.step(500)
+    assert scene.light_sweep._phase != phase_before
+    scene.apply_reduce_motion(True)

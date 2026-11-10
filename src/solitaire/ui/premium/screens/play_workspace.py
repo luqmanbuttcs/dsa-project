@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
 
 from solitaire.ui.premium.animations.card_animation_manager import CardAnimationManager
+from solitaire.ui.premium.audio import SoundManager
 from solitaire.ui.premium.components.dashboard.dsa_dashboard import DsaDashboard
 from solitaire.ui.premium.components.game.feedback_panel import FeedbackPanel
 from solitaire.ui.premium.components.game.move_log import MoveLogPanel
@@ -57,9 +58,20 @@ class PlayWorkspace(QWidget):
         layout.addWidget(self.dashboard)
 
         # --- wiring -----------------------------------------------------------
+        self.sound = SoundManager(self)
+        self.scene.on_sound = self.sound.play
         game.state_changed.connect(self._on_state_changed)
         game.feedback.connect(self.feedback_panel.show_feedback)
+        game.feedback.connect(self._on_feedback_sound)
         game.move_logged.connect(self.move_log.add_move)
+
+    def _on_feedback_sound(self, title: str, message: str, kind: str) -> None:
+        """Coarse sound mapping from controller feedback (optional audio)."""
+        if kind == FEEDBACK_ERROR:
+            self.sound.play("invalid")
+        elif kind == FEEDBACK_SUCCESS:
+            self.sound.play("stock_draw" if title == "Stock Draw" else "card_place")
+        # FEEDBACK_INFO stays silent; victory is handled by the main window.
 
     def _open_lab(self, page=None) -> None:
         """Open the DSA Lab, optionally on the clicked structure's page."""
@@ -74,8 +86,11 @@ class PlayWorkspace(QWidget):
             # A fresh table must never inherit the previous game's feedback
             # card — return the panel to its quiet idle state immediately.
             self.feedback_panel.show_idle()
-        self.scene.sync(animate=reason not in ("new-game",))
+        self.scene.sync(animate=reason not in ("new-game",), reason=reason)
         self.dashboard.refresh()
+        if reason == "new-game":
+            # After the fresh projection, run the dealer choreography.
+            self.scene.play_deal_sequence()
 
     def refresh_dashboard(self) -> None:
         self.dashboard.refresh()

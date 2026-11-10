@@ -6,7 +6,9 @@ from PyQt6.QtCore import QSettings, Qt
 from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 
+from solitaire.ui.premium.animations.card_animation_manager import CardAnimationManager
 from solitaire.ui.premium.components.header.header_bar import HeaderBar
+from solitaire.ui.premium.components.victory_overlay import VictoryOverlay
 from solitaire.ui.premium.controllers.game_controller import GameController
 from solitaire.ui.premium.controllers.navigation_controller import NavigationController
 from solitaire.ui.premium.controllers.selection_controller import SelectionController
@@ -84,10 +86,16 @@ class PremiumMainWindow(QMainWindow):
 
         self._reduce_motion = self._settings.value("reduce_motion", False, type=bool)
         self._speed_multiplier = self._settings.value("animation_speed", 1.0, type=float)
+        self._light_sweep_enabled = self._settings.value("light_sweep", True, type=bool)
         self._apply_animation_settings()
         self._update_action_states()
         self._refresh_metrics()
         self.open_play_workspace()
+
+        # --- victory presentation ------------------------------------------------
+        self.victory_overlay = VictoryOverlay(self)
+        self.victory_overlay.new_game_button.clicked.connect(self._victory_new_game)
+        self.victory_overlay.play_on_button.clicked.connect(self.victory_overlay.dismiss)
 
     # --- navigation --------------------------------------------------------------
     def open_play_workspace(self) -> None:
@@ -117,7 +125,22 @@ class PremiumMainWindow(QMainWindow):
     # --- header updates ------------------------------------------------------------
     def _refresh_metrics(self) -> None:
         metrics = self.game.metrics()
-        self.header.set_metrics(metrics["time"], metrics["moves"], metrics["score"])
+        old_score = self.header.score_chip.value_label.text()
+        old_moves = self.header.moves_chip.value_label.text()
+        flash_score = None
+        if metrics["score"] != old_score:
+            try:
+                flash_score = "gold" if int(metrics["score"]) > int(old_score or "0") else "cool"
+            except ValueError:
+                flash_score = "cool"
+        flash_moves = "cool" if metrics["moves"] != old_moves else None
+        self.header.set_metrics(
+            metrics["time"],
+            metrics["moves"],
+            metrics["score"],
+            flash_moves=flash_moves,
+            flash_score=flash_score,
+        )
 
     def _on_tick(self, seconds: int) -> None:
         self._refresh_metrics()
@@ -168,6 +191,12 @@ class PremiumMainWindow(QMainWindow):
         page._show_sidebar.toggle.blockSignals(True)
         page._show_sidebar.toggle.setChecked(self.play_workspace.dashboard.isVisible())
         page._show_sidebar.toggle.blockSignals(False)
+        page._sound.toggle.blockSignals(True)
+        page._sound.toggle.setChecked(self.play_workspace.sound.enabled)
+        page._sound.toggle.blockSignals(False)
+        page._light_sweep.toggle.blockSignals(True)
+        page._light_sweep.toggle.setChecked(self._light_sweep_enabled)
+        page._light_sweep.toggle.blockSignals(False)
 
     def _leave_game_mode(self) -> None:
         """Apply Game Mode choices and persist them before returning to play."""
@@ -175,6 +204,8 @@ class PremiumMainWindow(QMainWindow):
         page.apply()
         self._reduce_motion = page.reduce_motion
         self._speed_multiplier = page.speed_multiplier
+        self._light_sweep_enabled = page.light_sweep
+        self.play_workspace.sound.set_enabled(page.sound_enabled)
         self._apply_animation_settings()
 
     def _close_game_mode(self) -> None:
@@ -195,10 +226,27 @@ class PremiumMainWindow(QMainWindow):
         manager = CardAnimationManager.instance()
         manager.reduce_motion = self._reduce_motion
         manager.speed_multiplier = self._speed_multiplier
+        # The ambient sweep needs an explicit signal because it does not run
+        # through the animation manager's timers; both switches must agree.
+        if hasattr(self, "play_workspace"):
+            sweep = self._light_sweep_enabled and not self._reduce_motion
+            self.play_workspace.scene.apply_reduce_motion(not sweep)
 
     def _on_won(self) -> None:
-        # Non-blocking: the feedback panel already shows the victory summary.
+        # Non-blocking celebration: golden overlay with the final numbers.
         self._update_action_states()
+        state = self.game.state
+        self.play_workspace.sound.play("victory")
+        self.victory_overlay.present(
+            state.score,
+            state.move_count,
+            self.game.elapsed_seconds,
+            reduce_motion=self._reduce_motion,
+        )
+
+    def _victory_new_game(self) -> None:
+        self.victory_overlay.dismiss()
+        self.game.new_game(draw_count=self.game.draw_mode)
 
     # --- shortcuts -----------------------------------------------------------------------
     def _bind_shortcuts(self) -> None:

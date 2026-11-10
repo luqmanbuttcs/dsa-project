@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import math
 
-from PyQt6.QtCore import QPointF, QRectF, Qt, QVariantAnimation
+from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer, QVariantAnimation
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QPolygonF
 from PyQt6.QtWidgets import (
     QGraphicsObject,
@@ -29,10 +29,12 @@ from solitaire.ui.premium.controllers.selection_controller import SelectionContr
 from solitaire.ui.premium.graphics.card_item import CardGraphicsItem
 from solitaire.ui.premium.graphics.foundation_item import FoundationGraphicsItem
 from solitaire.ui.premium.graphics.felt_background import FeltBackgroundItem
+from solitaire.ui.premium.graphics.effects.light_sweep import LightSweepItem
 from solitaire.ui.premium.graphics.stock_item import StockGraphicsItem
 from solitaire.ui.premium.graphics.tableau_item import TableauColumnGraphicsItem
 from solitaire.ui.premium.graphics.waste_item import WasteGraphicsItem
 from solitaire.ui.premium.theme import (
+    ANIMATION_MS,
     CARD_H,
     CARD_W,
     WASTE_FAN,
@@ -89,6 +91,7 @@ class GameBoardScene(QGraphicsScene):
         self._last_drag_pos = QPointF()
         self._target_pulse: QVariantAnimation | None = None
         self._pending_bounce: set[str] = set()
+        self.on_sound = None  # callback(name) wired by the workspace
 
         # Dynamic layout state (recomputed by `relayout`).
         self.fan_down = 14.0
@@ -98,6 +101,14 @@ class GameBoardScene(QGraphicsScene):
         self.setBackgroundBrush(QColor(8, 18, 12))
         self.felt = FeltBackgroundItem(float(CONTENT_W), float(CONTENT_H))
         self.addItem(self.felt)
+        # Ambient light sweep: above the felt, below every pile and card.
+        # The driving timer belongs to the scene (QObject) so the sweep can
+        # never outlive its owner.
+        self.light_sweep = LightSweepItem(float(CONTENT_W), float(CONTENT_H))
+        self.addItem(self.light_sweep)
+        self._sweep_timer = QTimer(self)
+        self._sweep_timer.setInterval(42)
+        self._sweep_timer.timeout.connect(lambda: self.light_sweep.step(42))
 
         # --- slot items (positions are set by `relayout`) -----------------------
         self.stock_item = StockGraphicsItem()
@@ -190,6 +201,7 @@ class GameBoardScene(QGraphicsScene):
         self.fan_up = min(self.fan_up, 30.0)
 
         self.felt.set_size(float(width), float(height))
+        self.light_sweep.set_size(float(width), float(height))
         self.setSceneRect(0.0, 0.0, float(width), float(height))
 
         self.stock_item.setPos(self._slots["stock"])
@@ -212,6 +224,15 @@ class GameBoardScene(QGraphicsScene):
 
     def set_animation_manager(self, manager) -> None:
         self._animation = manager
+        self.apply_reduce_motion(manager.reduce_motion)
+
+    def apply_reduce_motion(self, reduce_motion: bool) -> None:
+        """Ambient effects obey Reduce Motion; call when the setting changes."""
+        self.light_sweep.set_enabled(not reduce_motion)
+        if reduce_motion:
+            self._sweep_timer.stop()
+        elif self.light_sweep.enabled:
+            self._sweep_timer.start()
 
     def prepare_shutdown(self) -> None:
         """Stop all cosmetic animation before the widget tree is destroyed.
@@ -222,6 +243,7 @@ class GameBoardScene(QGraphicsScene):
         """
         if self._animation is not None:
             self._animation.interrupt_all()
+        self._sweep_timer.stop()
 
     def settle_all(self) -> None:
         """Force every card to its authoritative engine-derived position.
@@ -238,7 +260,7 @@ class GameBoardScene(QGraphicsScene):
     def slot_position(self, pile_id: str) -> QPointF:
         return self._slots[pile_id]
 
-    def sync(self, animate: bool = True) -> None:
+    def sync(self, animate: bool = True, reason: str | None = None) -> None:
         """Re-derive all card positions/z-orders from the engine state."""
         # A state change during an active manual drag (header button,
         # shortcut) ends the drag first so the projection stays authoritative.
@@ -250,8 +272,9 @@ class GameBoardScene(QGraphicsScene):
             card_id: item.pos() for card_id, item in self.card_items.items()
         }
         was_face_up = {card_id: item.card.face_up for card_id, item in self.card_items.items()}
+        previous_zones = dict(self.card_zone)
 
-        placements: list[tuple[CardGraphicsItem, QPointF, float, bool]] = []
+        placements: list[tuple[CardGraphicsItem, QPointF, float, bool, int]] = []
 
         # Stock (front of the FIFO queue renders on top of the pile).
         stock_cards = state.stock.to_list()
@@ -259,7 +282,9 @@ class GameBoardScene(QGraphicsScene):
         for index, card in enumerate(stock_cards):
             item = self._item_for(card)
             offset = 2.0 * max(0, min(index, 2))
-            placements.append((item, QPointF(stock_pos.x() - offset, stock_pos.y() - offset), 5.0 + index, False))
+            placements.append(
+                (item, QPointF(stock_pos.x() - offset, stock_pos.y() - offset), 5.0 + index, False, -1)
+            )
             seen.add(card.card_id)
 
         # Waste: fan the newest three cards.
@@ -270,7 +295,7 @@ class GameBoardScene(QGraphicsScene):
             item = self._item_for(card)
             fan_index = visible.index(card) if card in visible else len(visible) - 1
             target = QPointF(waste_pos.x() + fan_index * WASTE_FAN, waste_pos.y())
-            placements.append((item, target, 5.0 + index, True))
+            placements.append((item, target, 5.0 + index, True, fan_index))
             seen.add(card.card_id)
 
         # Foundations: the full stack sits on the slot, top card visible.
@@ -280,7 +305,7 @@ class GameBoardScene(QGraphicsScene):
             pos = self._slots[pile_id]
             for index, card in enumerate(foundation_cards):
                 item = self._item_for(card)
-                placements.append((item, QPointF(pos), 5.0 + index, True))
+                placements.append((item, QPointF(pos), 5.0 + index, True, -1))
                 seen.add(card.card_id)
 
         # Tableau columns with fan offsets.
@@ -291,7 +316,7 @@ class GameBoardScene(QGraphicsScene):
             y = pos.y()
             for card_index, card in enumerate(column.cards_bottom_to_top()):
                 item = self._item_for(card)
-                placements.append((item, QPointF(pos.x(), y), 10.0 + card_index, card.face_up))
+                placements.append((item, QPointF(pos.x(), y), 10.0 + card_index, card.face_up, -1))
                 y += self.fan_down if not card.face_up else self.fan_up
                 seen.add(card.card_id)
 
@@ -301,17 +326,30 @@ class GameBoardScene(QGraphicsScene):
             self.removeItem(item)
 
         self.card_top = {card_id: False for card_id in seen}
-        for item, target, z_value, _face_up in placements:
+        stock_pos = self._slots["stock"]
+        for item, target, z_value, _face_up, draw_fan_index in placements:
             card_id = item.card_id
             old = previous_positions.get(card_id)
             moved = old is not None and (old - target).manhattanLength() > 0.5
             bounce = card_id in self._pending_bounce and moved
             if bounce:
                 self._pending_bounce.discard(card_id)
+            # Draw-3 stagger: cards that just left the Stock land on the
+            # Waste fan left-to-right with small delays.
+            delay_ms = 0
+            if (
+                draw_fan_index >= 0
+                and moved
+                and old is not None
+                and (old - stock_pos).manhattanLength() < 16.0
+            ):
+                delay_ms = draw_fan_index * 60
             if old is None:
                 item.setPos(target)
             elif moved and animate and self._animation is not None:
-                self._animation.animate_move(item, item.pos(), target, z_value, bounce=bounce)
+                self._animation.animate_move(
+                    item, item.pos(), target, z_value, bounce=bounce, delay_ms=delay_ms
+                )
             else:
                 if self._animation is not None:
                     self._animation.snap(item, target, z_value)
@@ -321,10 +359,12 @@ class GameBoardScene(QGraphicsScene):
         self._pending_bounce.clear()
 
         # Faces: flip items whose card changed visibility.
-        for item, _target, _z, _face in placements:
+        for item, _target, _z, _face, _fan in placements:
             card = item.card
             if was_face_up.get(item.card_id) != card.face_up:
                 item.refresh_face(animated=animate and self._animation is not None)
+                if animate and self._animation is not None and self.on_sound is not None:
+                    self.on_sound("card_flip")
 
         # Slot decorations.
         self.stock_item.set_state(
@@ -341,6 +381,19 @@ class GameBoardScene(QGraphicsScene):
 
         self.refresh_zone_map()
         self.refresh_highlights()
+
+        # Universal Foundation celebration: any card that *lands* on a
+        # foundation since the previous projection gets the gold welcome —
+        # whether it arrived by drag, click-to-move or a redo replay.
+        if animate:
+            for card_id, pile_id in self.card_zone.items():
+                old_pile = previous_zones.get(card_id)
+                if (
+                    pile_id != old_pile
+                    and pile_id.startswith("foundation-")
+                    and not (old_pile or "").startswith("foundation-")
+                ):
+                    self._celebrate_foundation(pile_id)
 
     def refresh_zone_map(self) -> None:
         """Recompute the card_id -> pile_id and top-card maps from state."""
@@ -525,6 +578,8 @@ class GameBoardScene(QGraphicsScene):
         self._selection.clear()
         self.refresh_highlights(drag_legal=self._drag_legal)
         self._start_target_pulse()
+        if self.on_sound is not None:
+            self.on_sound("card_pick")
 
     def update_card_drag(self, item: CardGraphicsItem, scene_pos: QPointF) -> None:
         """Move the run with the pointer one-to-one; tilt from velocity."""
@@ -560,8 +615,8 @@ class GameBoardScene(QGraphicsScene):
             moved = self._game.try_move(source, card_ids[0], target_pile)
 
         if moved:
-            if target_pile.startswith("foundation-"):
-                self._celebrate_foundation(target_pile)
+            # Foundation celebration is handled universally inside sync()
+            # (it detects the zone change), so nothing extra is needed here.
             self.refresh_highlights()
         else:
             self._pending_bounce.clear()
@@ -620,6 +675,72 @@ class GameBoardScene(QGraphicsScene):
         foundation_item = self.foundation_items.get(pile_id)
         if foundation_item is not None and self._animation is not None:
             self._animation.pulse_property(foundation_item, "legal_glow")
+        if self._animation is None or self._animation.reduce_motion:
+            return
+        from solitaire.ui.premium.graphics.effects.particle_burst import ParticleBurstItem
+
+        slot = self._slots[pile_id]
+        center = QPointF(slot.x() + CARD_W / 2.0, slot.y() + CARD_H / 2.0)
+        burst = ParticleBurstItem(center)
+        self.addItem(burst)
+        burst.start()
+        if self.on_sound is not None:
+            self.on_sound("foundation")
+
+    # --- new-game dealing choreography ------------------------------------------
+    def play_deal_sequence(self) -> None:
+        """Cosmetic dealer choreography after a fresh game.
+
+        All 28 dealt tableau cards visually depart from the Stock and fly
+        to their authoritative positions in true dealing order (row-major
+        across the seven columns), face-up cards flipping as they land.
+        Pure projection: the engine state is untouched, and any user action
+        during the sequence simply supersedes the flight (see the animation
+        manager's supersede rule).
+        """
+        if self._animation is None or self._animation.reduce_motion:
+            return
+        state = self._game.state
+        columns = [state.tableau[f"tableau-{index}"] for index in range(1, 8)]
+        max_depth = max((len(column.cards_bottom_to_top()) for column in columns), default=0)
+        order: list[tuple[CardGraphicsItem, float, bool]] = []
+        for depth in range(max_depth):
+            for column in columns:
+                cards = column.cards_bottom_to_top()
+                if depth < len(cards):
+                    card = cards[depth]
+                    item = self.card_items.get(card.card_id)
+                    if item is not None:
+                        order.append((item, item.zValue(), card.face_up))
+        if not order:
+            return
+        stock_pos = self._slots["stock"]
+        stagger = 36
+        travel = int(ANIMATION_MS["move"] * self._animation.speed_multiplier)
+        for index, (item, z_value, face_up) in enumerate(order):
+            target = item.pos()
+            delay = index * stagger
+            item.set_flip(1.0)  # every dealt card leaves the deck face-down
+            item.setPos(stock_pos)
+            self._animation.animate_move(
+                item, stock_pos, target, z_value, base_ms=ANIMATION_MS["move"], delay_ms=delay
+            )
+            if face_up:
+                flip_at = delay + max(90, travel - 90)
+                QTimer.singleShot(
+                    flip_at,
+                    lambda target_item=item: self._flip_after_deal(target_item),
+                )
+        if self.on_sound is not None:
+            self.on_sound("stock_draw")
+
+    def _flip_after_deal(self, item: CardGraphicsItem) -> None:
+        try:
+            if item.scene() is None:
+                return
+            item.refresh_face(animated=True)
+        except RuntimeError:
+            return
 
     # --- Qt drag & drop ----------------------------------------------------------
     def dragEnterEvent(self, event: QGraphicsDragDropEvent) -> None:  # noqa: N802

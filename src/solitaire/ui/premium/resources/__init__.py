@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QApplication
 RESOURCES_DIR = Path(__file__).resolve().parent
 ART_DIR = RESOURCES_DIR / "art"
 TEXTURE_DIR = RESOURCES_DIR / "textures"
+AUDIO_DIR = RESOURCES_DIR / "audio"
 
 _SUIT_FILES = {
     "hearts": "suit-hearts.svg",
@@ -52,7 +53,14 @@ def get_art_path(name: str) -> Path:
 def get_texture_path(name: str) -> Path:
     candidate = TEXTURE_DIR / name
     if not candidate.exists():
-        raise FileNotFoundError(f"bundled texture is missing: {name}")
+        raise FileNotFoundError(f"bundled texture asset is missing: {name}")
+    return candidate
+
+
+def get_audio_path(name: str) -> Path:
+    candidate = AUDIO_DIR / name
+    if not candidate.exists():
+        raise FileNotFoundError(f"bundled audio asset is missing: {name}")
     return candidate
 
 

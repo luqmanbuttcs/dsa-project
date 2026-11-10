@@ -152,11 +152,31 @@ class PileSlotItem(QGraphicsObject):
 
     # --- shared painting helpers ----------------------------------------------
     def paint_slot_base(self, painter: QPainter, rect: QRectF, radius: float = 10.0) -> None:
+        """Recessed emerald slot: dark well, contact shadow, gold rim."""
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         path = QPainterPath()
         path.addRoundedRect(rect, radius, radius)
         painter.fillPath(path, self.SLOT_FILL)
+
+        # Inner contact shadow along the top edge — physical depth.
+        from PyQt6.QtGui import QLinearGradient
+
+        top_shadow = QLinearGradient(rect.topLeft(), QPointF(rect.left(), rect.top() + 18.0))
+        top_shadow.setColorAt(0.0, QColor(0, 0, 0, 80))
+        top_shadow.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setClipPath(path)
+        painter.fillPath(path, top_shadow)
+
+        # Faint bottom bounce light.
+        bottom_light = QLinearGradient(
+            QPointF(rect.left(), rect.bottom()), QPointF(rect.left(), rect.bottom() - 14.0)
+        )
+        bottom_light.setColorAt(0.0, QColor(190, 255, 214, 22))
+        bottom_light.setColorAt(1.0, QColor(190, 255, 214, 0))
+        painter.fillPath(path, bottom_light)
+        painter.setClipping(False)
+
         painter.setPen(QPen(self.SLOT_BORDER, 1.2))
         painter.drawPath(path)
         if self._legal_glow > 0.01:
