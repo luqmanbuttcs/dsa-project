@@ -93,6 +93,10 @@ class CardGraphicsItem(QGraphicsObject):
         self.on_drag_cancelled = None
         self._press_pos: QPoint | None = None
         self._dragging = False
+        # One live QPropertyAnimation per float property (see
+        # _animate_property): the registry lets a new animation retire the
+        # previous writer and lets tests scrub timelines deterministically.
+        self._property_animations: dict[str, QPropertyAnimation] = {}
         self.setAcceptHoverEvents(True)
         self.setZValue(10.0)
 
@@ -204,16 +208,34 @@ class CardGraphicsItem(QGraphicsObject):
         The QPropertyAnimation is parented to *this item*, so it can never
         outlive its target — no orphaned animation can write into a dying
         C++ object (the historical exit-134 abort family).
+
+        Exactly one timeline may own a property at a time. Qt >= 6.8 already
+        stops a previous QPropertyAnimation on the same target + property
+        when a new one starts; retiring it here makes that guarantee
+        explicit and version-independent, and ``deleteLater()`` releases the
+        retired timeline instead of letting finished animations accumulate
+        as children of the item for its whole lifetime. The registry also
+        lets tests drive the timeline with ``setCurrentTime()``
+        deterministically instead of racing the wall clock (whose coarse
+        timer granularity differs per platform).
         """
+        previous = self._property_animations.pop(name, None)
+        if previous is not None:
+            try:
+                previous.stop()
+                previous.deleteLater()
+            except RuntimeError:
+                pass  # already destroyed with a dying C++ object
         try:
             animation = QPropertyAnimation(self, name.encode(), self)
             animation.setDuration(ms)
             animation.setStartValue(getattr(self, f"get_{name}")())
             animation.setEndValue(target)
             animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._property_animations[name] = animation
             animation.start()
         except RuntimeError:
-            pass
+            pass  # target destroyed between calls; nothing left to animate
 
     def animate_hover(self, lifted: bool) -> None:
         if not self._interactive and lifted:

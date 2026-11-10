@@ -9,6 +9,7 @@ QT_QPA_PLATFORM=offscreen, so no GPU or display server is required.
 from __future__ import annotations
 
 import os
+import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -561,15 +562,44 @@ def _viewport_center(view, scene_pos):
     return view.mapFromScene(scene_pos)
 
 
+def _wait_for_drag_lift(app, item, *, target, at_most=False, timeout_ms=2000.0):
+    """Poll the live event loop until the drag-lift property reaches target.
+
+    ``drag_lift`` is a real 140ms QPropertyAnimation driven by Qt's unified
+    animation timer. Its first tick only lands once the event loop processes
+    a timer event — tens of milliseconds after activation — and the coarse
+    timer granularity differs per platform (Windows lands ticks later than
+    Linux), so sampling the value at one fixed instant is inherently racy
+    (a Windows run read 0.0 here while Linux read anywhere in 0.34..1.0).
+    Waiting for the sweep to complete is the deterministic contract: a
+    timeout means the animation genuinely failed, never "was too slow".
+    """
+    from PyQt6.QtTest import QTest
+
+    def reached(value):
+        return value <= target if at_most else value >= target
+
+    deadline = time.monotonic() + timeout_ms / 1000.0
+    while time.monotonic() < deadline:
+        app.processEvents()
+        if reached(item.get_drag_lift()):
+            return True
+        QTest.qWait(10)
+    return False
+
+
 def test_manual_drag_lifts_the_run_and_follows_the_pointer(app, window):
     """Press + move starts a real manual drag: run items raise and follow."""
-    from PyQt6.QtCore import QPoint, Qt
+    from PyQt6.QtCore import QPoint, QPointF, Qt
     from PyQt6.QtTest import QTest
 
     column_id, face_up_ids = _grabable_run(app, window)
     scene = window.play_workspace.scene
     view = window.play_workspace.view
     item = scene.card_items[face_up_ids[0]]
+
+    assert item.get_drag_lift() == 0.0, "the card must start its drag at rest"
+    rest_pos = QPointF(item.scenePos())
 
     start = _viewport_center(view, item.mapToScene(item.rect().center()))
     QTest.mousePress(
@@ -586,7 +616,17 @@ def test_manual_drag_lifts_the_run_and_follows_the_pointer(app, window):
     assert scene._drag_source == column_id
     # The grabbed card follows the pointer: its scene pos tracks the cursor.
     assert scene._drag_run[0].zValue() > 250.0
-    assert item.get_drag_lift() > 0.0 or item._drag_lift > 0.0
+    drift = item.scenePos() - rest_pos
+    assert abs(drift.x()) + abs(drift.y()) > 5.0, "run must track the pointer"
+    # drag_lift animates 0 -> 1 over 140ms of wall time. When the pointer
+    # events are delivered late (the Windows input path) no animation tick
+    # has been processed yet at this point, so instead of sampling one racy
+    # instant we wait for the genuine 0 -> 1 sweep to complete. A timeout
+    # here would mean the lift animation truly failed to run.
+    assert _wait_for_drag_lift(app, item, target=0.99), (
+        "drag-lift animation must sweep to its full lift during the drag"
+    )
+    assert item.get_drag_lift() >= 0.99
 
     QTest.mouseRelease(
         view.viewport(),
@@ -597,6 +637,80 @@ def test_manual_drag_lifts_the_run_and_follows_the_pointer(app, window):
     app.processEvents()
     scene.settle_all()
     app.processEvents()
+    # Dropping (legal or not) must settle the card back to a flat rest pose.
+    assert _wait_for_drag_lift(app, item, target=0.01, at_most=True), (
+        "drag-lift must return to rest after the drop"
+    )
+    assert item.get_drag_lift() == pytest.approx(0.0, abs=0.01)
+
+
+def test_drag_lift_timeline_sweeps_zero_to_one_deterministically(app, window):
+    """Scrub the real 140ms lift timeline: 0 -> mid-flight -> exactly 1.0.
+
+    ``setCurrentTime()`` evaluates the property synchronously while the
+    animation is running, on every platform, independent of timer
+    granularity — so this pins the animation contract (duration 140, real
+    progression through intermediate values, exact endpoints) without any
+    wall-clock race. Probes showed a fresh animation is not evaluated until
+    the unified timer's first coarse tick, which is what made the
+    mouse-driven assertion platform-dependent.
+    """
+    from PyQt6.QtCore import QAbstractAnimation
+
+    scene = window.play_workspace.scene
+    scene.settle_all()  # quiesce deal choreography before touching the item
+    app.processEvents()
+    item = next(it for it in scene.card_items.values() if it.card.face_up)
+
+    item.begin_drag_session()
+    try:
+        animation = item._property_animations.get("drag_lift")
+        assert animation is not None, "begin_drag_session must start the lift timeline"
+        assert animation.duration() == 140, "the lift keeps its 140ms duration"
+        assert animation.state() == QAbstractAnimation.State.Running
+        # Drive the clock instead of waiting on it: deterministic everywhere.
+        animation.setCurrentTime(0)
+        assert item.get_drag_lift() == pytest.approx(0.0, abs=1e-9)
+        animation.setCurrentTime(70)
+        mid = item.get_drag_lift()
+        assert 0.0 < mid < 1.0, f"lift must genuinely progress, got {mid}"
+        animation.setCurrentTime(140)
+        assert item.get_drag_lift() == pytest.approx(1.0, abs=1e-9)
+        assert animation.state() == QAbstractAnimation.State.Stopped
+    finally:
+        item.end_drag_session()
+        scene.settle_all()
+    assert _wait_for_drag_lift(app, item, target=0.01, at_most=True)
+
+
+def test_rapid_lift_unlift_keeps_one_animation_writer(app, window):
+    """Releasing mid-lift must leave exactly one writer on drag_lift: the
+    superseded lift timeline stopped, the unlift timeline driving the card
+    back to an exact 0.0 rest. (Qt >= 6.8 retires same-target+property
+    writers at start(); the item's own _animate_property does it explicitly
+    so the contract also holds on older Qt.)"""
+    from PyQt6.QtCore import QAbstractAnimation
+    from PyQt6.QtTest import QTest
+
+    scene = window.play_workspace.scene
+    scene.settle_all()
+    app.processEvents()
+    item = next(it for it in scene.card_items.values() if it.card.face_up)
+
+    item.begin_drag_session()
+    lift = item._property_animations.get("drag_lift")
+    assert lift is not None
+    QTest.qWait(70)  # real ticks advance the lift part-way (first tick ~30ms)
+    item.end_drag_session()
+
+    unlift = item._property_animations.get("drag_lift")
+    assert unlift is not None and unlift is not lift
+    assert lift.state() == QAbstractAnimation.State.Stopped, (
+        "the superseded lift animation must be retired, not left running"
+    )
+    # Drive the unlift to its end: the card must end exactly at rest.
+    unlift.setCurrentTime(140)
+    assert item.get_drag_lift() == pytest.approx(0.0, abs=1e-9)
 
 
 def test_manual_drag_to_legal_target_executes_the_move(app, window):

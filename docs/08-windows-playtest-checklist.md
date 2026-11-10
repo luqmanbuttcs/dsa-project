@@ -39,6 +39,9 @@ python -m solitaire.main  # premium shell
 - [ ] Drag a face-up tableau card to another column; the newly exposed card flips face-up automatically.
 - [ ] Click a *lower* face-up card in a column and drag: the whole face-up run above it moves as one unit and keeps its order.
 - [ ] Drag an Ace (or next rank) to its matching suit foundation; the gold frame accepts it.
+- [ ] **Drag-lift feel (regression for the Windows CI fix):** press on a card and hold — the card visibly lifts (up to ~10px) with a soft shadow within ~0.2s of the grab, even if you do not move the mouse; it settles flat again within ~0.2s of the drop.
+- [ ] During a drag the lifted run follows the pointer one-to-one (no lag/spring-back) and tilts slightly with horizontal velocity; releasing over a legal target commits the move, releasing over nothing returns the run home.
+- [ ] Rapid grab → release → re-grab the same card: no visible jitter or "fighting" between the lift and settle animations, and no card remains stuck lifted after the interaction.
 - [ ] Attempt an invalid drop (same color / wrong rank): the move is rejected, an explanatory message appears in the feedback panel, and both piles are visually unchanged.
 - [ ] Attempt to drop a non-King sequence on an empty tableau column: rejected.
 - [ ] Empty the stock and recycle the waste; drawing continues from the recycled order (recycle is reflected in the Queue page's counters).
