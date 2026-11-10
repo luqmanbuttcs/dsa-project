@@ -125,3 +125,49 @@ score, move count and elapsed time. The committed victory screenshot
 **Visual evidence.** `docs/screenshots/pr_*.png` are captured from the running
 application by `scripts/capture_pr_evidence.py` — real engine deals, real QTest
 interactions, real win; nothing mocked.
+
+## 10. Application-wide design system (one visual identity)
+
+The approved Play Workspace reference is now the application-wide standard. Both
+experiences — the premium card game and the technical inspection environment —
+are projections of one design system, not two separately styled applications.
+
+**Shared tokens and components.** `theme.py` remains the single source of truth
+and now also carries the electric mint (`#40E0B2`) and controlled cyan
+(`#56C8EA`) accents — the same values the card graphics use for selection glow —
+so widget chrome and 2D board share one accent system. The shared component
+language lives in `components/common/controls.py`: `PanelCard` (rounded navy
+panel, gold icon + title heading), `SectionTitle`, `FilterLabel`,
+`make_table()` (premium read-only data table with alternating navy rows and gold
+headers from the global QSS) and `strip_scroll()` (transparent card-strip
+scroller). The DSA Lab's `widgets.py` (StatChip, LiveBadge, PileTag, MetricCard)
+is token-driven; no page carries its own stylesheet or hardcoded hex values.
+
+**Play Workspace.** The sidebar keeps its approved structure — DSA Overview —
+Live Structures, Latest Operation, Recent Player Moves, Game Progress — and the
+**Open DSA Lab button is pinned as the sidebar footer**: directly below Game
+Progress when the panels fit the viewport, fully visible (no scrolling) when the
+window is short, verified down to the 1280×800 minimum. The full mid-game panel
+set fits 1600×900 without scrolling.
+
+**DSA Lab.** The global header (branding, title, Time/Moves/Score chips,
+Hint/Undo/Redo/Settings) spans every workspace unchanged. The lab navigation row
+carries the flask emblem and the eight sections — Overview, Array / List, Stack,
+Queue, Linked List, Dictionary, Timeline, Game Stats — as navy tabs with a
+restrained mint/cyan hover; the active tab takes the same gold gradient as the
+header's primary buttons. All eight pages speak the same component language:
+Overview and Game Stats use identical metric cards, the inspectors share one
+table factory and one filter-row style, and the educational content (live
+OperationTracker counts, real pile composition, node diagrams, searchable card
+index, chronological event log) is untouched.
+
+**Preserved functionality.** GameEngine, rules, the five data structures,
+OperationTracker, Undo/Redo, Hint, Timer/Scoring, victory detection and Reduce
+Motion are unchanged — `git diff 431a01b..HEAD -- src/solitaire/domain
+src/solitaire/structures` remains empty, and every displayed value still comes
+from the real running game.
+
+**Evidence.** `docs/screenshots/ds_*.png` (captured by
+`scripts/capture_design_evidence.py`): full Play Workspace incl. the pinned
+button, all eight lab pages, responsive checks at 1280×800 / 1600×900 /
+1920×1029, and a Play-vs-Lab comparison demonstrating the shared identity.
