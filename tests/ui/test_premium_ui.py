@@ -1746,3 +1746,108 @@ def test_light_sweep_respects_reduce_motion(app, window):
     scene.light_sweep.step(500)
     assert scene.light_sweep._phase != phase_before
     scene.apply_reduce_motion(True)
+
+
+# --- application-wide design system ------------------------------------------------------
+
+
+def test_open_dsa_lab_button_pinned_and_fully_visible_at_minimum_size(app, window):
+    """At the 1280x800 minimum the Open DSA Lab button must be fully visible
+    without scrolling the sidebar — it is pinned outside the scroll area."""
+    from PyQt6.QtWidgets import QPushButton, QScrollArea
+
+    window.resize(1280, 800)
+    app.processEvents()
+    dashboard = window.play_workspace.dashboard
+    button = dashboard.open_lab_button
+    assert isinstance(button, QPushButton)
+    assert button.isVisible()
+
+    # Fully inside the dashboard's on-screen rect (never clipped by the
+    # scroll viewport's bottom edge).
+    dash_bottom = dashboard.mapToGlobal(dashboard.rect().bottomLeft()).y()
+    button_bottom = button.mapToGlobal(button.rect().bottomLeft()).y()
+    assert button_bottom <= dash_bottom + 1
+
+    # The button is NOT part of the scrollable content.
+    scroll = dashboard.findChild(QScrollArea)
+    assert scroll is not None
+    assert not button.isAncestorOf(scroll.widget())
+    assert scroll.widget().isAncestorOf(dashboard._history_rows[0])
+
+
+def test_open_dsa_lab_button_click_opens_the_lab(app, window):
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+
+    dashboard = window.play_workspace.dashboard
+    QTest.mouseClick(dashboard.open_lab_button, Qt.MouseButton.LeftButton)
+    app.processEvents()
+    assert window.navigation.current is Workspace.DSA_LAB
+    window.open_play_workspace()
+
+
+def test_open_dsa_lab_button_sits_below_game_progress_when_space_allows(app, window):
+    """When the panels fit the viewport, the footer button renders directly
+    beneath the Game Progress panel."""
+    window.resize(1600, 900)
+    app.processEvents()
+    dashboard = window.play_workspace.dashboard
+    # Game Progress is the last panel in the scroll content; find its frame
+    # through the progress text label.
+    progress_text = dashboard._progress_text
+    panel = progress_text.parentWidget()
+    progress_bottom = panel.mapTo(dashboard, panel.rect().bottomLeft()).y()
+    button_top = dashboard.open_lab_button.mapTo(dashboard, dashboard.open_lab_button.rect().topLeft()).y()
+    assert button_top >= progress_bottom
+    assert button_top - progress_bottom <= 40  # footer padding only
+
+
+def test_game_stats_page_uses_the_shared_metric_card_language(app, window):
+    """The stats grid is built from the same MetricCard component as the
+    Overview page (icon + muted caption + prominent value)."""
+    from solitaire.ui.premium.dsa_lab.widgets import MetricCard
+
+    window.open_dsa_lab()
+    page = window.dsa_lab._pages[LabPage.STATS]
+    cards = [c for c in page.findChildren(MetricCard)]
+    assert len(cards) >= 9
+    # Every card exposes the live value label the refresh contract writes to.
+    assert page._value_labels["Moves"] in [c.value_label for c in cards]
+    page.refresh()
+    assert page._value_labels["Moves"].text() == "0"
+
+
+def test_lab_tables_share_the_read_only_premium_contract(app, window):
+    """Every lab table comes from the shared factory: read-only, no row
+    header, alternating navy rows — one component language, no page styles."""
+    from PyQt6.QtWidgets import QTableWidget
+
+    window.open_dsa_lab()
+    tables = {
+        LabPage.STACK: 2,
+        LabPage.QUEUE: 1,
+        LabPage.LINKED_LIST: 1,
+        LabPage.DICTIONARY: 1,
+        LabPage.TIMELINE: 1,
+    }
+    for page_id, expected in tables.items():
+        page = window.dsa_lab._pages[page_id]
+        found = page.findChildren(QTableWidget)
+        assert len(found) == expected, f"{page_id}: expected {expected} table(s)"
+        for table in found:
+            assert not table.verticalHeader().isVisible()
+            assert table.editTriggers() == QTableWidget.EditTrigger.NoEditTriggers
+            assert table.alternatingRowColors() is True
+
+
+def test_lab_tabs_mark_exactly_one_active_page(app, window):
+    """The gold active treatment is driven by the checked state — exactly
+    one tab is checked per page and every tab is reachable."""
+    lab = window.dsa_lab
+    for target in LabPage:
+        lab.show_page(target)
+        app.processEvents()
+        checked = [p for p, b in lab._buttons.items() if b.isChecked()]
+        assert checked == [target]
+        assert lab.current_page() is target
