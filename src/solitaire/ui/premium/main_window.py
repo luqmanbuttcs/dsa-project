@@ -1,0 +1,278 @@
+"""Premium main window: full-width header + stacked workspaces."""
+
+from __future__ import annotations
+
+from PyQt6.QtCore import QSettings, Qt
+from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
+
+from solitaire.ui.premium.animations.card_animation_manager import CardAnimationManager
+from solitaire.ui.premium.components.header.header_bar import HeaderBar
+from solitaire.ui.premium.components.victory_overlay import VictoryOverlay
+from solitaire.ui.premium.controllers.game_controller import GameController
+from solitaire.ui.premium.controllers.navigation_controller import NavigationController
+from solitaire.ui.premium.controllers.selection_controller import SelectionController
+from solitaire.ui.premium.navigation import Workspace
+from solitaire.ui.premium.screens.dsa_lab_workspace import DsaLabWorkspace
+from solitaire.ui.premium.screens.game_mode_page import GameModePage
+from solitaire.ui.premium.screens.play_workspace import PlayWorkspace
+from solitaire.ui.premium.theme import DESIGN_H, DESIGN_W, MIN_WINDOW_H, MIN_WINDOW_W, qss
+
+
+class PremiumMainWindow(QMainWindow):
+    """Top-level shell for the premium casino presentation layer."""
+
+    def __init__(self, parent=None, seed: int | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Klondike Solitaire — CSC200 DSA Edition")
+        self.setMinimumSize(MIN_WINDOW_W, MIN_WINDOW_H)
+        self.resize(DESIGN_W, DESIGN_H)
+        self.setStyleSheet(qss())
+
+        self._settings = QSettings("CSC200", "KlondikeSolitairePremium")
+        self.game = GameController(self, seed=seed)
+        self.selection = SelectionController(self.game)
+        self.navigation = NavigationController(self)
+
+        self.header = HeaderBar(self)
+        self.play_workspace = PlayWorkspace(self.game, self.selection, self)
+        self.dsa_lab = DsaLabWorkspace(self.game, on_back=self.open_play_workspace, parent=self)
+        self.game_mode_page = GameModePage(
+            self.game,
+            draw_mode=self.game.draw_mode,
+            reduce_motion=self._read_setting("reduce_motion", False, bool),
+            speed_multiplier=self._read_setting("animation_speed", 1.0, float),
+            show_sidebar=True,
+            on_show_sidebar=self._set_sidebar_visible,
+            on_new_game=self._game_mode_new_game,
+            on_back=self._close_game_mode,
+            parent=self,
+        )
+
+        self.workspaces = QStackedWidget(self)
+        self.workspaces.addWidget(self.play_workspace)
+        self.workspaces.addWidget(self.dsa_lab)
+        self.workspaces.addWidget(self.game_mode_page)
+
+        central = QWidget(self)
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(self.header)
+        central_layout.addWidget(self.workspaces, 1)
+        self.setCentralWidget(central)
+
+        # --- header wiring ------------------------------------------------------
+        self.hint_button = self.header.hint_button
+        self.undo_button = self.header.undo_button
+        self.redo_button = self.header.redo_button
+        self.settings_button = self.header.settings_button
+        self.hint_button.clicked.connect(self._show_hint)
+        self.undo_button.clicked.connect(self.game.undo)
+        self.redo_button.clicked.connect(self.game.redo)
+        self.settings_button.clicked.connect(self.open_settings)
+
+        # --- game wiring ---------------------------------------------------------
+        self.game.state_changed.connect(self._on_state_changed)
+        self.game.operations_changed.connect(self._on_operations_changed)
+        self.game.tick.connect(self._on_tick)
+        self.game.game_won.connect(self._on_won)
+
+        # --- navigation wiring ------------------------------------------------------
+        self.navigation.workspace_changed.connect(self._switch_workspace)
+
+        # --- shortcuts ---------------------------------------------------------------
+        self._bind_shortcuts()
+
+        self._reduce_motion = self._settings.value("reduce_motion", False, type=bool)
+        self._speed_multiplier = self._settings.value("animation_speed", 1.0, type=float)
+        self._light_sweep_enabled = self._settings.value("light_sweep", True, type=bool)
+        self._apply_animation_settings()
+        self._update_action_states()
+        self._refresh_metrics()
+        self.open_play_workspace()
+
+        # --- victory presentation ------------------------------------------------
+        self.victory_overlay = VictoryOverlay(self)
+        self.victory_overlay.new_game_button.clicked.connect(self._victory_new_game)
+        self.victory_overlay.play_on_button.clicked.connect(self.victory_overlay.dismiss)
+        # Escape must dismiss the celebration no matter which widget holds
+        # focus. The overlay itself takes focus on present() and handles the
+        # key; this window-level shortcut is the safety net for the cases
+        # where focus intentionally stays elsewhere (the board view, a header
+        # button). It is armed only while the overlay is visible so Escape
+        # keeps its default meaning the rest of the time.
+        self._victory_escape = QShortcut(QKeySequence("Escape"), self)
+        self._victory_escape.activated.connect(self._dismiss_victory_if_visible)
+        self._victory_escape.setEnabled(False)
+        self.victory_overlay.dismissed.connect(
+            lambda: self._victory_escape.setEnabled(False)
+        )
+
+    # --- navigation --------------------------------------------------------------
+    def open_play_workspace(self) -> None:
+        self.navigation.open_play()
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        # Halt cosmetic animation while every graphics item is still alive so
+        # that later destruction (also from Python GC) cannot touch items
+        # through a running animation. See CardAnimationManager lifecycle notes.
+        self.play_workspace.scene.prepare_shutdown()
+        super().closeEvent(event)
+
+    def open_dsa_lab(self, page=None) -> None:
+        self.navigation.open_dsa_lab()
+        if page is not None:
+            self.dsa_lab.show_page(page)
+
+    def _switch_workspace(self, value: str) -> None:
+        workspace = Workspace(value)
+        index = {Workspace.PLAY: 0, Workspace.DSA_LAB: 1, Workspace.GAME_MODE: 2}[workspace]
+        self.workspaces.setCurrentIndex(index)
+        if workspace is Workspace.DSA_LAB:
+            self.dsa_lab.refresh()
+        elif workspace is Workspace.GAME_MODE:
+            self._sync_game_mode()
+
+    # --- header updates ------------------------------------------------------------
+    def _refresh_metrics(self) -> None:
+        metrics = self.game.metrics()
+        old_score = self.header.score_chip.value_label.text()
+        old_moves = self.header.moves_chip.value_label.text()
+        flash_score = None
+        if metrics["score"] != old_score:
+            try:
+                flash_score = "gold" if int(metrics["score"]) > int(old_score or "0") else "cool"
+            except ValueError:
+                flash_score = "cool"
+        flash_moves = "cool" if metrics["moves"] != old_moves else None
+        self.header.set_metrics(
+            metrics["time"],
+            metrics["moves"],
+            metrics["score"],
+            flash_moves=flash_moves,
+            flash_score=flash_score,
+        )
+
+    def _on_tick(self, seconds: int) -> None:
+        self._refresh_metrics()
+
+    def _on_state_changed(self, reason: str) -> None:
+        self._refresh_metrics()
+        self._update_action_states()
+
+    def _on_operations_changed(self) -> None:
+        self.play_workspace.refresh_dashboard()
+        self._update_action_states()
+
+    def _update_action_states(self) -> None:
+        self.undo_button.setEnabled(self.game.can_undo)
+        self.redo_button.setEnabled(self.game.can_redo)
+
+    # --- actions ----------------------------------------------------------------------
+    def _show_hint(self) -> None:
+        hint = self.game.hint_move()
+        self.game.hint()
+        self.play_workspace.show_hint(hint)
+
+    def new_game(self) -> None:
+        if self.victory_overlay.isVisible():
+            # A fresh deal supersedes the celebration; never leave it floating
+            # over a new board.
+            self.victory_overlay.dismiss()
+        if self.game.state.move_count > 0 and not self.game.is_won:
+            answer = QMessageBox.question(
+                self,
+                "New Game",
+                "Discard the current game and deal a new one?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        self.game.new_game(draw_count=self.game.draw_mode)
+
+    def open_settings(self) -> None:
+        """Open the Game Mode page (draw mode, motion, view, new game)."""
+        self.navigation.open_workspace(Workspace.GAME_MODE)
+
+    def _read_setting(self, key: str, default, type_):
+        return self._settings.value(key, default, type=type_)
+
+    def _sync_game_mode(self) -> None:
+        page = self.game_mode_page
+        (page._draw_three if self.game.draw_mode == 3 else page._draw_one).setChecked(True)
+        page._reduce_motion.toggle.blockSignals(True)
+        page._reduce_motion.toggle.setChecked(self._reduce_motion)
+        page._reduce_motion.toggle.blockSignals(False)
+        page._show_sidebar.toggle.blockSignals(True)
+        page._show_sidebar.toggle.setChecked(self.play_workspace.dashboard.isVisible())
+        page._show_sidebar.toggle.blockSignals(False)
+        page._sound.toggle.blockSignals(True)
+        page._sound.toggle.setChecked(self.play_workspace.sound.enabled)
+        page._sound.toggle.blockSignals(False)
+        page._light_sweep.toggle.blockSignals(True)
+        page._light_sweep.toggle.setChecked(self._light_sweep_enabled)
+        page._light_sweep.toggle.blockSignals(False)
+
+    def _leave_game_mode(self) -> None:
+        """Apply Game Mode choices and persist them before returning to play."""
+        page = self.game_mode_page
+        page.apply()
+        self._reduce_motion = page.reduce_motion
+        self._speed_multiplier = page.speed_multiplier
+        self._light_sweep_enabled = page.light_sweep
+        self.play_workspace.sound.set_enabled(page.sound_enabled)
+        self._apply_animation_settings()
+
+    def _close_game_mode(self) -> None:
+        self._leave_game_mode()
+        self.open_play_workspace()
+
+    def _game_mode_new_game(self) -> None:
+        self._leave_game_mode()
+        self.new_game()
+        self.open_play_workspace()
+
+    def _set_sidebar_visible(self, visible: bool) -> None:
+        self.play_workspace.dashboard.setVisible(visible)
+
+    def _apply_animation_settings(self) -> None:
+        from solitaire.ui.premium.animations.card_animation_manager import CardAnimationManager
+
+        manager = CardAnimationManager.instance()
+        manager.reduce_motion = self._reduce_motion
+        manager.speed_multiplier = self._speed_multiplier
+        # The ambient sweep needs an explicit signal because it does not run
+        # through the animation manager's timers; both switches must agree.
+        if hasattr(self, "play_workspace"):
+            sweep = self._light_sweep_enabled and not self._reduce_motion
+            self.play_workspace.scene.apply_reduce_motion(not sweep)
+
+    def _on_won(self) -> None:
+        # Non-blocking celebration: golden overlay with the final numbers.
+        self._update_action_states()
+        state = self.game.state
+        self.play_workspace.sound.play("victory")
+        self.victory_overlay.present(
+            state.score,
+            state.move_count,
+            self.game.elapsed_seconds,
+            reduce_motion=self._reduce_motion,
+        )
+        self._victory_escape.setEnabled(True)
+
+    def _dismiss_victory_if_visible(self) -> None:
+        if self.victory_overlay.isVisible():
+            self.victory_overlay.dismiss()
+
+    def _victory_new_game(self) -> None:
+        self.victory_overlay.dismiss()
+        self.game.new_game(draw_count=self.game.draw_mode)
+
+    # --- shortcuts -----------------------------------------------------------------------
+    def _bind_shortcuts(self) -> None:
+        QShortcut(QKeySequence("Ctrl+Z"), self, activated=self.game.undo)
+        QShortcut(QKeySequence("Ctrl+Y"), self, activated=self.game.redo)
+        QShortcut(QKeySequence("Ctrl+N"), self, activated=self.new_game)
+        QShortcut(QKeySequence("H"), self, activated=self._show_hint)
+        QShortcut(QKeySequence("Space"), self, activated=self.game.draw_from_stock)

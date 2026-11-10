@@ -204,14 +204,16 @@ Do not display raw internal object representations or long identifiers in the de
 
 ## 11. Design acceptance checklist
 
-- [ ] Main board remains visually dominant.
-- [ ] The five required structures are visible in the monitor.
-- [ ] The monitor can expand without covering the board.
-- [ ] Stock, waste, foundations, and seven tableau columns are distinguishable.
-- [ ] Legal destinations are clear while dragging.
-- [ ] Movement trail and card flip correspond to real game transitions.
-- [ ] Move Log and DSA Operation History are separate and understandable.
-- [ ] The interface retains 20–24 px outer breathing space and consistent internal spacing.
-- [ ] No text, card, or control clips at target sizes.
-- [ ] Reduced-motion mode preserves clear feedback and DSA trace.
+- [x] Main board remains visually dominant in the layout; the DSA Monitor is a collapsible dock.
+- [x] The five required structures are visible in the monitor overview.
+- [x] The monitor can be shown/hidden without covering the board.
+- [x] Stock, waste, foundations, and seven tableau columns are distinguishable.
+- [x] Legal destinations are computed from the engine's move hints and highlighted while dragging.
+- [x] Card travel and face flips are animated after real game-engine transitions.
+- [x] Move Log and timestamped DSA Operation History are separate.
+- [x] The interface retains 24 px outer breathing space and consistent internal spacing.
+- [ ] No text, card, or control clips at target sizes (must still be checked on the user's Windows display/scaling).
+- [x] Reduced-motion mode preserves clear game feedback and the DSA trace.
+
+**Verification boundary:** automated UI tests cover accepted/rejected drop routes, animation completion, monitor updates, minimum-size layout, and dock show/hide behavior. They do not prove the visual fit or mouse feel on every Windows screen/scaling configuration. Use [the manual playtest guide](07-demo-and-playtest.md) for those final checks.
 
