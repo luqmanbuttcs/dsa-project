@@ -93,5 +93,35 @@ apply. All eight pages and their real OperationTracker data are unchanged.
 - The interaction sweep (`tools/interaction_sweep.py`) drives the live event loop
   across card clicks, real press-move-release drags, delivered drops, header buttons,
   Game Mode toggles, victory overlay, all 8 Lab pages, resize and clean close —
-  and reports **SWEEP CLEAN** (no exception escaped any slot). 180 automated tests
+  and reports **SWEEP CLEAN** (no exception escaped any slot). 186 automated tests
   pass (`python -m pytest`).
+
+## 9. Review corrections (PR #3 review round)
+
+**Invalid-move sequencing.** The fly-home `sync(animate=True)` used to start
+immediately after `invalid_shake()`, and the movement manager's `interrupt_for()`
+cancelled the shake before it rendered a single frame. The shake now owns the drop
+point first; the return trip is deferred to the shake's `finished` signal behind a
+generation counter (`scene._reject_seq`) that any real sync or new drag invalidates —
+so feedback can never fight authoritative projection, a re-grab mid-shake never
+starts movement animations under the user's hand, and Reduce Motion (no shake)
+returns home immediately. Regression tests pin all three paths.
+
+**Victory Escape.** `present()` now takes keyboard focus (StrongFocus) so a real
+Escape press reaches the overlay's `keyPressEvent`, and a window-level Escape
+shortcut — armed only while the overlay is visible, disarmed by the `dismissed`
+signal — dismisses it when focus stays on the board. `new_game()` dismisses a
+still-open celebration before dealing. QtTest regression tests cover Escape with
+overlay focus, Escape with focus elsewhere, and the disarm cycle.
+
+**End-to-end victory test.** A deterministic test builds a one-move-from-victory
+position with the real domain structures (three complete foundations, the spade
+King alone on tableau-7), completes the game through the real `GameEngine`, and
+asserts the real `game_won` signal opens the overlay with the engine's actual
+score, move count and elapsed time. The committed victory screenshot
+(`docs/screenshots/pr_13_victory.png`) shows this same real win: score 20,
+3 moves, 00:00.
+
+**Visual evidence.** `docs/screenshots/pr_*.png` are captured from the running
+application by `scripts/capture_pr_evidence.py` — real engine deals, real QTest
+interactions, real win; nothing mocked.
