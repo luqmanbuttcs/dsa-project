@@ -97,7 +97,10 @@ class StructureRow(QPushButton):
         self.setObjectName("structureRow")
         self.setCursor(self.cursor())
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setFixedHeight(44)
+        # Minimum, not fixed: at Windows-style DPI the platform renders every
+        # font 1.5x larger in logical pixels, and a wrapped subtitle then
+        # needs a taller row. Rows grow; the sidebar scrolls vertically.
+        self.setMinimumHeight(44)
         self._accent = accent
         self._icon_name = icon_name
         self._on_open = on_open
@@ -114,10 +117,17 @@ class StructureRow(QPushButton):
         self.title_label.setStyleSheet(
             f"color: {GOLD_TEXT}; font-weight: bold; font-size: 13px; background: transparent;"
         )
+        # Wrap: a label's minimum width must be its longest WORD, never its
+        # full text — otherwise high-DPI font scaling (Windows renders every
+        # px font size at logicalDpi/96 x) pushes the scroll content wider
+        # than the viewport and, with the horizontal scrollbar AlwaysOff,
+        # silently clips the right edge of every panel.
+        self.title_label.setWordWrap(True)
         self.subtitle_label = QLabel(subtitle)
         self.subtitle_label.setStyleSheet(
             f"color: {TEXT_MUTED}; font-size: 11px; background: transparent;"
         )
+        self.subtitle_label.setWordWrap(True)
 
         text_column = QVBoxLayout()
         text_column.setContentsMargins(0, 0, 0, 0)
@@ -230,6 +240,9 @@ class DsaDashboard(QWidget):
         self._latest_title.setStyleSheet(
             f"color: {GOLD_TEXT}; font-weight: bold; font-size: 13px; background: transparent;"
         )
+        # Dynamic content ("<structure>" after real moves): the minimum width
+        # must stay word-bounded for the same high-DPI reason as above.
+        self._latest_title.setWordWrap(True)
         self._latest_body = QLabel("Deal complete — the table is set.")
         self._latest_body.setObjectName("panelBody")
         # The body text is dynamic (operation label + pile id) and platform
@@ -270,6 +283,10 @@ class DsaDashboard(QWidget):
         self._progress = ProgressMeter()
         self._progress_text = QLabel("0 / 52 cards in Foundations")
         self._progress_text.setObjectName("mutedText")
+        # Wrap like the other free-text labels: at 150% DPI the platform
+        # font is 1.5x wider in logical px and this label demanded 244px —
+        # the second-widest overflow contributor after the panel titles.
+        self._progress_text.setWordWrap(True)
         progress_layout.addWidget(self._progress)
         progress_layout.addWidget(self._progress_text)
         layout.addWidget(progress_frame)

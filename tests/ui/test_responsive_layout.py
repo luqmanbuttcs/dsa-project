@@ -120,6 +120,41 @@ def _reach(app, scroll, widget) -> bool:
     return _fully_visible(widget)
 
 
+def _width_offenders(scroll, limit: int = 4) -> list[str]:
+    """Describe the widest descendants that drive the content's minimum.
+
+    The sidebar's horizontal scrollbar is AlwaysOff, so a single
+    over-wide descendant silently clips the right edge of every panel
+    (this is exactly how Windows 150% DPI broke Game Progress: the
+    platform renders every px font 1.5x larger and non-wrapping labels
+    pinned the content's minimumSizeHint to 491px against a 400px
+    viewport). When the width invariant breaks, this walks the content
+    tree and reports the widest containers AND text leaves — class,
+    objectName, text, font, wrap state — marking those that alone exceed
+    the viewport, so the culprit chain (e.g. 'PanelCard 438px because its
+    panelTitle leaf demands 383px') is visible in one failure message.
+    """
+    content = scroll.widget()
+    viewport = scroll.viewport()
+    entries: list[tuple[int, str, bool]] = []
+    for child in content.findChildren(QWidget):
+        need = child.minimumSizeHint().width()
+        wrap = getattr(child, "wordWrap", lambda: "-")()
+        text = getattr(child, "text", lambda: "")()
+        font = child.font()
+        size = font.pixelSize() if font.pixelSize() > 0 else f"{font.pointSize():g}pt"
+        desc = (
+            f"{type(child).__name__}#{child.objectName() or '-'} needs {need}px "
+            f"text={text[:36]!r} font={font.family()}@{size} wrap={wrap}"
+        )
+        entries.append((need, desc, need > viewport.width()))
+    entries.sort(key=lambda e: e[0], reverse=True)
+    return [
+        f"{desc}{' <== OVER VIEWPORT' if over else ''}"
+        for need, desc, over in entries[:limit]
+    ]
+
+
 def _motion_rows(page):
     return [page._reduce_motion, page._show_sidebar, page._sound, page._light_sweep]
 
@@ -279,10 +314,12 @@ def test_play_dashboard_stays_accessible_at_every_size(app, window, width, heigh
     # The scroll content must never demand more width than the viewport
     # offers: with the horizontal scrollbar policy AlwaysOff, any overflow
     # would silently make the right edge of every panel (Game Progress
-    # included) unreachable. Every free-text label therefore wraps.
+    # included) unreachable. Every free-text label therefore wraps, and the
+    # failure message names the exact over-wide descendant.
     assert content.minimumSizeHint().width() <= dashboard._scroll.viewport().width(), (
         f"sidebar content needs {content.minimumSizeHint().width()}px but the "
-        f"viewport is {dashboard._scroll.viewport().width()}px at {width}x{height}"
+        f"viewport is {dashboard._scroll.viewport().width()}px at {width}x{height}; "
+        f"widest culprits: {_width_offenders(dashboard._scroll)[:3]}"
     )
 
     # The header (with Hint/Undo/Redo/Settings) and the board stay usable.
@@ -577,7 +614,8 @@ def test_dashboard_survives_a_windows_style_app_font(app):
         viewport = dashboard._scroll.viewport()
         assert content.minimumSizeHint().width() <= viewport.width(), (
             f"sidebar content needs {content.minimumSizeHint().width()}px, "
-            f"viewport offers {viewport.width()}px under a 20px app font"
+            f"viewport offers {viewport.width()}px under a 20px app font; "
+            f"widest culprits: {_width_offenders(dashboard._scroll)[:3]}"
         )
         progress_panel = dashboard._progress.parentWidget()
         assert _reach(app, dashboard._scroll, progress_panel), (
@@ -601,7 +639,8 @@ def test_dashboard_survives_a_windows_style_app_font(app):
         assert content.minimumSizeHint().width() <= viewport.width(), (
             f"sidebar content needs {content.minimumSizeHint().width()}px, "
             f"viewport offers {viewport.width()}px under the 32px stress — "
-            f"a free-text label stopped wrapping"
+            f"a free-text label stopped wrapping; "
+            f"widest culprits: {_width_offenders(dashboard._scroll)[:3]}"
         )
         assert _reach(app, dashboard._scroll, progress_panel), (
             "Game Progress must stay reachable under the 32px stress font"
@@ -612,6 +651,65 @@ def test_dashboard_survives_a_windows_style_app_font(app):
         window.deleteLater()
         app.processEvents()
         app.setFont(original_font)
+
+
+def test_dashboard_survives_windows_dpi_font_scaling(app):
+    """Windows 150% DPI renders EVERY font — the point-size app font AND
+    every QSS px rule — at 1.5x the logical size. Field data: the sidebar
+    content's minimumSizeHint measured 491px against a 400px viewport,
+    exactly the 96dpi measurement x 1.5, at every window size; the widest
+    contributors were the non-wrapping panel titles (383px) and the Game
+    Progress caption (244px). Widget box metrics (panel margins, icon
+    chips, count badges) do NOT scale, so the only way the sidebar can
+    survive ANY DPI is for every text label's minimum width to be its
+    longest WORD (wordWrap) instead of its full text.
+
+    This regression scales every label font inside the dashboard's scroll
+    content by 1.5x — the exact Windows mechanism, deterministic on every
+    platform — and requires the width invariant, Game Progress
+    reachability and the pinned Open DSA Lab button to survive it.
+    """
+    window = PremiumMainWindow(seed=SEED)
+    try:
+        window.show()
+        _resize(app, window, 1280, 640)  # the supported minimum
+        window.open_play_workspace()
+        app.processEvents()
+        dashboard = window.play_workspace.dashboard
+        content = dashboard._scroll.widget()
+        viewport = dashboard._scroll.viewport()
+
+        # Scale every label font by 1.5x. Appending to the existing inline
+        # stylesheet keeps the colors; in QSS the last font-size wins, so
+        # the scaled size overrides both the theme rule and any earlier
+        # inline size — exactly what Windows' DPI-scaled resolution does.
+        for label in content.findChildren(QLabel):
+            current = label.font().pixelSize()
+            if current <= 0:
+                dpi = app.primaryScreen().logicalDotsPerInch()
+                current = round(label.font().pointSizeF() * dpi / 72)
+            label.setStyleSheet(
+                label.styleSheet() + f" font-size: {round(current * 1.5)}px;"
+            )
+        app.processEvents()
+
+        assert content.minimumSizeHint().width() <= viewport.width(), (
+            f"sidebar content needs {content.minimumSizeHint().width()}px, "
+            f"viewport offers {viewport.width()}px at 1.5x font scale "
+            f"(the Windows 150% condition); "
+            f"widest culprits: {_width_offenders(dashboard._scroll)[:3]}"
+        )
+        progress_panel = dashboard._progress.parentWidget()
+        assert _reach(app, dashboard._scroll, progress_panel), (
+            "Game Progress must stay reachable at 1.5x font scale"
+        )
+        assert _fully_visible(dashboard.open_lab_button), (
+            "Open DSA Lab must stay fully visible at 1.5x font scale"
+        )
+    finally:
+        window.close()
+        window.deleteLater()
+        app.processEvents()
 
 
 def test_settings_slider_maps_to_manager_and_persists(app, window, speed_guard):

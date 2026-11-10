@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QTableWidget,
     QVBoxLayout,
     QWidget,
@@ -51,8 +52,22 @@ class PanelCard(QFrame):
             row.addWidget(icon_label)
         heading = QLabel(title)
         heading.setObjectName("panelTitle")
+        # The heading must be single-line whenever the panel is wide enough
+        # (the 96dpi design) and may only wrap when the viewport genuinely
+        # cannot fit it — Windows 150% DPI renders every px font 1.5x larger
+        # in logical pixels and "DSA Overview — Live Structures" then
+        # demanded 383px of a 347px row. Two mechanics achieve that:
+        # wordWrap(True) bounds the minimum width to the longest word (so a
+        # squeeze degrades to a second line instead of overflowing the
+        # AlwaysOff-scrollbar sidebar), and the horizontal Expanding policy
+        # replaces the old trailing stretch so the label keeps its full
+        # single-line width whenever space allows (a wrapped QLabel's
+        # sizeHint is narrow; without this it wrapped even at 96dpi).
+        heading.setWordWrap(True)
+        heading.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
         row.addWidget(heading)
-        row.addStretch(1)
         return row
 
     def body(self) -> QVBoxLayout:
