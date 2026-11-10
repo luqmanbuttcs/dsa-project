@@ -18,6 +18,10 @@ import sys
 
 
 def main(argv: list[str] | None = None) -> int:
+    from solitaire.ui.stability import install_slot_exception_hook
+
+    install_slot_exception_hook()
+
     args = list(sys.argv if argv is None else argv)
     use_legacy = "--legacy" in args
     args = [arg for arg in args if arg != "--legacy"]

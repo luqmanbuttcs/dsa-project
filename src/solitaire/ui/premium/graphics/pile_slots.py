@@ -75,12 +75,16 @@ class PileSlotItem(QGraphicsObject):
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
+            self._pressed = True
             event.accept()
             return
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton and self.isUnderMouse():
+        if event.button() == Qt.MouseButton.LeftButton and getattr(self, "_pressed", False):
+            # The accepted press grabbed the mouse; this release is ours even
+            # if hover state says otherwise (cursor drift / offscreen tests).
+            self._pressed = False
             if self.on_clicked is not None:
                 self.on_clicked(self)
             event.accept()

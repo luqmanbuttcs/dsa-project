@@ -790,3 +790,151 @@ def test_settle_all_snaps_in_flight_cards_to_engine_positions(window):
     scene.settle_all()
     after = {cid: item.pos() for cid, item in scene.card_items.items()}
     assert before == after
+
+
+# --- real mouse interaction & process stability -----------------------------------------
+#
+# Regression guard for the Windows crash report: clicking any interactive card
+# raised AttributeError inside QGraphicsObject.mousePressEvent (scene events
+# expose pos()/scenePos(), not QMouseEvent.position()), and PyQt6 answers an
+# exception escaping a slot with qFatal -> abort, terminating the whole
+# application. These tests drive the REAL Qt event pipeline (QTest + real
+# C++ event dispatch), not controller methods.
+
+
+def test_real_mouse_click_on_card_selects_instead_of_aborting(app, window):
+    """A genuine QGraphicsSceneMouseEvent press/release must select the card.
+
+    Before the fix this aborted the test process (exit 134) on the first
+    card click; it is the direct canary for the reported termination.
+    """
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QGraphicsView
+
+    window.game.new_game(draw_count=1, announce=False)
+    window.game.draw_from_stock()
+    app.processEvents()
+
+    view = window.play_workspace.findChildren(QGraphicsView)[0]
+    scene = view.scene()
+    top_id = window.game.state.waste.peek().card_id
+    item = scene.card_items[top_id]
+    local = view.mapFromScene(item.mapToScene(item.boundingRect().center()))
+
+    QTest.mouseMove(view.viewport(), local)
+    app.processEvents()
+    QTest.mouseClick(
+        view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, local
+    )
+    app.processEvents()
+
+    assert window.selection.has_selection
+    assert window.selection.card_id == top_id
+    assert window.selection.source_pile == "waste"
+
+
+def test_raising_slot_is_logged_and_application_survives(app, window):
+    """An exception escaping a slot must be logged, never abort the process.
+
+    PyQt6's default is qFatal -> abort; the installed stability hook turns
+    that into a logged error while the application keeps responding.
+    """
+    import sys
+
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+
+    from solitaire.ui.stability import install_slot_exception_hook
+
+    saved_hook = sys.excepthook
+    captured = []
+
+    def recording_hook(kind, value, tb):
+        captured.append(value)
+
+    sys.excepthook = recording_hook
+    try:
+        window.game.new_game(draw_count=1, announce=False)
+        app.processEvents()
+
+        calls = []
+
+        def raising_slot(_reason: str) -> None:
+            calls.append(True)
+            raise RuntimeError("simulated defect in a slot")
+
+        window.game.state_changed.connect(raising_slot)
+        stock_before = window.game.state.stock.size()
+
+        # A QShortcut activation dispatches the slot from C++ code, so the
+        # exception escapes into Qt exactly like a real UI interaction.
+        QTest.keyClick(window, Qt.Key.Key_Space)
+        app.processEvents()
+
+        assert calls, "the raising slot was not reached"
+        assert captured and isinstance(captured[-1], RuntimeError)
+        assert window.isVisible(), "the window must stay open"
+
+        # The application must still respond: disconnect the fault and draw again.
+        window.game.state_changed.disconnect(raising_slot)
+        window.play_workspace.scene.settle_all()
+        QTest.keyClick(window, Qt.Key.Key_Space)
+        app.processEvents()
+        assert window.game.state.stock.size() < stock_before
+    finally:
+        sys.excepthook = saved_hook
+
+
+def test_stability_hook_is_installed_by_entry_points(monkeypatch):
+    """Both entry points arm the keep-running excepthook before showing UI."""
+
+    import solitaire.main as entry
+    from solitaire.ui import stability
+    from solitaire.ui.premium import app as premium_app
+
+    calls = []
+    existing_app = QApplication.instance() or QApplication([])
+
+    # Premium bootstrap: hook armed during create_app (no second QApplication).
+    monkeypatch.setattr(
+        premium_app, "install_slot_exception_hook", lambda: calls.append("create_app")
+    )
+    monkeypatch.setattr(premium_app, "QApplication", lambda argv: existing_app)
+    premium_app.create_app([])
+    assert "create_app" in calls
+
+    # solitaire.main arms it before launching either window branch; stop the
+    # launch at the premium main boundary.
+    calls.clear()
+    monkeypatch.setattr(stability, "install_slot_exception_hook", lambda: calls.append("entry"))
+    monkeypatch.setattr("solitaire.ui.premium.app.main", lambda argv: 0)
+    assert entry.main(["x"]) == 0
+    assert "entry" in calls
+
+
+def test_dashboard_structure_rows_open_the_lab_on_that_page(app, window):
+    """Clicking a dashboard structure row must open the DSA Lab on the
+    clicked structure's page.
+
+    Regression: _open_lab() accepted no page argument, so every structure
+    row click raised TypeError — which PyQt6 escalates to qFatal abort,
+    terminating the application on Windows.
+    """
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+
+    from solitaire.ui.premium.components.dashboard.dsa_dashboard import STRUCTURE_ROWS
+
+    window.game.draw_from_stock()
+    app.processEvents()
+    dashboard = window.play_workspace.dashboard
+
+    for name, _subtitle, _icon, page, _accent in STRUCTURE_ROWS:
+        row = dashboard._rows[name]
+        QTest.mouseClick(row, Qt.MouseButton.LeftButton)
+        app.processEvents()
+        assert window.workspaces.currentIndex() == 1, "lab workspace must be shown"
+        assert window.dsa_lab.current_page() == page
+        window.open_play_workspace()
+        app.processEvents()

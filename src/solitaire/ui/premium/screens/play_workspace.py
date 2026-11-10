@@ -61,10 +61,11 @@ class PlayWorkspace(QWidget):
         game.feedback.connect(self.feedback_panel.show_feedback)
         game.move_logged.connect(self.move_log.add_move)
 
-    def _open_lab(self) -> None:
+    def _open_lab(self, page=None) -> None:
+        """Open the DSA Lab, optionally on the clicked structure's page."""
         window = self.window()
         if hasattr(window, "open_dsa_lab"):
-            window.open_dsa_lab()
+            window.open_dsa_lab(page)
 
     def _on_state_changed(self, reason: str) -> None:
         if reason == "new-game":

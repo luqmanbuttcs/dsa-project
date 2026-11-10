@@ -290,7 +290,9 @@ class CardGraphicsItem(QGraphicsObject):
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if self._interactive and event.button() == Qt.MouseButton.LeftButton:
-            self._press_pos = event.position().toPoint()
+            # QGraphicsSceneMouseEvent.pos() is the press point in item-local
+            # coordinates (scene events have no QMouseEvent.position()).
+            self._press_pos = event.pos().toPoint()
             event.accept()
             return
         super().mousePressEvent(event)
@@ -303,7 +305,7 @@ class CardGraphicsItem(QGraphicsObject):
             and event.buttons() & Qt.MouseButton.LeftButton
             and self.drag_provider is not None
         ):
-            distance = (event.position().toPoint() - self._press_pos).manhattanLength()
+            distance = (event.pos().toPoint() - self._press_pos).manhattanLength()
             if distance >= DRAG_THRESHOLD:
                 self._press_pos = None
                 if self._start_drag():
@@ -332,8 +334,12 @@ class CardGraphicsItem(QGraphicsObject):
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         if self._interactive and event.button() == Qt.MouseButton.LeftButton:
+            # The accepted press made this item the mouse grabber, so this
+            # release belongs to it even when the cursor drifted off the
+            # card or the hover state was never updated (offscreen/tests).
+            pressed = self._press_pos is not None
             self._press_pos = None
-            if self.isUnderMouse() and self.on_clicked is not None:
+            if pressed and self.on_clicked is not None:
                 self.on_clicked(self)
             event.accept()
             return
