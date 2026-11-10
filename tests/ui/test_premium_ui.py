@@ -155,6 +155,92 @@ def test_same_pile_request_is_rejected_before_touching_the_engine(window):
     assert feedback[-1][2] == "error"
 
 
+@pytest.mark.parametrize(
+    ("source_pile", "destination_pile", "prepare_waste"),
+    [
+        ("tableau-5", "waste", False),
+        ("tableau-5", "stock", False),
+        ("waste", "waste", True),
+        ("waste", "stock", True),
+        ("tableau-5", "tableau-99", False),
+        ("tableau-5", "foundation-x", False),
+        ("stock", "tableau-1", False),
+        ("unknown-source", "tableau-1", False),
+    ],
+)
+def test_unsupported_pile_requests_are_rejected_without_engine_mutation(
+    window, monkeypatch, source_pile, destination_pile, prepare_waste
+):
+    controller = window.game
+    if prepare_waste:
+        controller.draw_from_stock()
+
+    card_id = None
+    if source_pile in controller.state.tableau:
+        card_id = controller.state.tableau[source_pile].peek().card_id
+
+    engine = controller.engine
+    before_snapshot = engine._capture_snapshot()
+    before_history = tuple(engine.move_history)
+    before_events = controller.tracker.events
+    before_index = dict(controller.state.card_index)
+    before_clock_running = controller._clock_running
+    feedback = []
+    controller.feedback.connect(lambda title, message, kind: feedback.append((title, message, kind)))
+
+    movement_calls = []
+    for method_name in (
+        "move_tableau_to_tableau",
+        "move_tableau_to_foundation",
+        "move_waste_to_tableau",
+        "move_waste_to_foundation",
+    ):
+        monkeypatch.setattr(
+            engine,
+            method_name,
+            lambda *args, _name=method_name, **kwargs: movement_calls.append(_name),
+        )
+
+    result = controller.try_move(source_pile, card_id, destination_pile)
+
+    assert result is False
+    assert movement_calls == []
+    assert engine._capture_snapshot() == before_snapshot
+    assert tuple(engine.move_history) == before_history
+    assert controller.tracker.events == before_events
+    assert controller.state.card_index == before_index
+    assert controller._clock_running is before_clock_running
+    assert feedback[-1][0] == "Invalid Move"
+    assert feedback[-1][2] == "error"
+    controller.state.assert_invariants()
+
+
+def test_controller_executes_a_valid_waste_to_tableau_move(window):
+    controller = window.game
+    destination = None
+
+    # Draw until the visible Waste card has at least one legal Tableau target.
+    # The fixed seed makes this deterministic while avoiding a hard-coded card.
+    for _ in range(controller.state.stock.size()):
+        controller.draw_from_stock()
+        targets = controller.legal_destinations("waste", None)
+        destination = next(
+            (pile_id for pile_id in targets if pile_id in controller.state.tableau),
+            None,
+        )
+        if destination is not None:
+            break
+
+    assert destination is not None, "the seeded deal should expose a Waste-to-Tableau move"
+    moved_card_id = controller.state.waste.peek().card_id
+    before_moves = controller.state.move_count
+
+    assert controller.try_move("waste", moved_card_id, destination) is True
+    assert controller.state.move_count == before_moves + 1
+    assert controller.state.card_index[moved_card_id].pile_id == destination
+    controller.state.assert_invariants()
+
+
 def test_face_down_card_is_rejected_by_the_engine(window):
     face_down = window.game.state.tableau["tableau-7"].cards_bottom_to_top()[0]
     assert face_down.face_up is False
