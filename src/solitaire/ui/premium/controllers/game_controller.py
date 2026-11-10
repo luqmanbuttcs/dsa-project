@@ -208,25 +208,49 @@ class GameController(QObject):
             )
             return False
 
+        # Resolve pile IDs against the live state before dispatching. A Waste
+        # or Stock target is not a Tableau column; prefix-only routing used
+        # to send "waste" into move_tableau_to_tableau(), which raised an
+        # uncaught ValueError from GameEngine._get_tableau().
+        tableau_piles = self._state.tableau
+        foundation_suits = {
+            f"foundation-{suit.code.lower()}": suit
+            for suit in self._state.foundations
+        }
+
+        if source_pile != "waste" and source_pile not in tableau_piles:
+            self.feedback.emit(
+                "Invalid Move",
+                "The selected source is not a movable Waste or Tableau pile.",
+                FEEDBACK_ERROR,
+            )
+            return False
+
+        if destination_pile not in tableau_piles and destination_pile not in foundation_suits:
+            self.feedback.emit(
+                "Invalid Move",
+                "Choose a Tableau column or Foundation as the destination.",
+                FEEDBACK_ERROR,
+            )
+            return False
+
         try:
             if source_pile == "waste":
-                if destination_pile.startswith("foundation-"):
-                    self._engine.move_waste_to_foundation(foundation_suit_for(destination_pile))
+                if destination_pile in foundation_suits:
+                    self._engine.move_waste_to_foundation(foundation_suits[destination_pile])
                 else:
                     self._engine.move_waste_to_tableau(destination_pile)
-            elif source_pile.startswith("tableau-"):
+            else:
                 if card_id is None:
                     raise _missing_card_error()
-                if destination_pile.startswith("foundation-"):
+                if destination_pile in foundation_suits:
                     self._engine.move_tableau_to_foundation(
-                        source_pile, foundation_suit_for(destination_pile)
+                        source_pile, foundation_suits[destination_pile]
                     )
                 else:
                     self._engine.move_tableau_to_tableau(
                         source_pile, card_id, destination_pile
                     )
-            else:
-                raise _missing_card_error()
         except InvalidMoveError as error:
             # Invalid action: the engine rejected before mutating and the
             # game clock must NOT start on a rejected move.
