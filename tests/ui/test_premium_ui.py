@@ -541,16 +541,12 @@ def test_lower_face_up_tableau_card_starts_a_run_selection(window):
     selection.clear()
 
 
-def test_card_item_starts_a_real_qdrag_with_run_payload(window, monkeypatch):
-    from PyQt6.QtGui import QDrag
-    from PyQt6.QtCore import QByteArray
-    from solitaire.ui.premium.controllers.drag_controller import MIME_TYPE
-
+def _grabable_run(app, window):
+    """Deal a board, make one move, return (column_id, face_up_ids, hint-free state)."""
     hint = next(
         h for h in window.game.engine.find_hints() if h.source_pile != "stock"
     )
     assert window.game.try_move(hint.source_pile, hint.card_ids[0], hint.destination_pile)
-
     state = window.game.state
     column_id, cards = next(
         (pile_id, column.cards_bottom_to_top())
@@ -558,28 +554,218 @@ def test_card_item_starts_a_real_qdrag_with_run_payload(window, monkeypatch):
         if sum(1 for c in column.cards_bottom_to_top() if c.face_up) >= 2
     )
     face_up_ids = [c.card_id for c in cards if c.face_up]
+    return column_id, face_up_ids
 
-    captured = {}
 
-    def fake_exec(self, *args, **kwargs):
-        captured["mime"] = self.mimeData()
-        captured["ids"] = face_up_ids
-        return __import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.DropAction.IgnoreAction
+def _viewport_center(view, scene_pos):
+    return view.mapFromScene(scene_pos)
 
-    monkeypatch.setattr(QDrag, "exec", fake_exec)
+
+def test_manual_drag_lifts_the_run_and_follows_the_pointer(app, window):
+    """Press + move starts a real manual drag: run items raise and follow."""
+    from PyQt6.QtCore import QPoint, Qt
+    from PyQt6.QtTest import QTest
+
+    column_id, face_up_ids = _grabable_run(app, window)
+    scene = window.play_workspace.scene
+    view = window.play_workspace.view
+    item = scene.card_items[face_up_ids[0]]
+
+    start = _viewport_center(view, item.mapToScene(item.rect().center()))
+    QTest.mousePress(
+        view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start
+    )
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), start + QPoint(20, 6))
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), start + QPoint(34, 10))
+    app.processEvents()
+
+    assert scene._drag_run, "manual drag session must be active"
+    assert scene._drag_card_ids == face_up_ids
+    assert scene._drag_source == column_id
+    # The grabbed card follows the pointer: its scene pos tracks the cursor.
+    assert scene._drag_run[0].zValue() > 250.0
+    assert item.get_drag_lift() > 0.0 or item._drag_lift > 0.0
+
+    QTest.mouseRelease(
+        view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        start + QPoint(34, 10),
+    )
+    app.processEvents()
+    scene.settle_all()
+    app.processEvents()
+
+
+def test_manual_drag_to_legal_target_executes_the_move(app, window):
+    """Release over a legal target performs the real engine move."""
+    from PyQt6.QtCore import QPointF, QPoint, Qt
+    from PyQt6.QtTest import QTest
 
     scene = window.play_workspace.scene
+    view = window.play_workspace.view
+    before_moves = window.game.state.move_count
+
+    # Find ANY draggable card with a legal destination (tableau or foundation).
+    plan = None
+    for pile_id in [f"tableau-{n}" for n in range(1, 8)] + ["waste"]:
+        if pile_id == "waste":
+            cards = window.game.state.waste.to_list()
+            candidates = [cards[-1]] if cards else []
+        else:
+            cards = window.game.state.tableau[pile_id].cards_bottom_to_top()
+            candidates = [c for c in cards if c.face_up]
+        for card in reversed(candidates):
+            legal = [
+                p
+                for p in window.game.legal_destinations(pile_id, card.card_id)
+                if p != pile_id and not (pile_id == "waste" and p == "waste")
+            ]
+            if legal:
+                plan = (pile_id, card.card_id, legal[0])
+                break
+        if plan:
+            break
+    if plan is None:
+        pytest.skip("board offers no legal drag destination")
+    source_pile, moving_id, target_pile = plan
+
+    item = scene.card_items[moving_id]
+    start = _viewport_center(view, item.mapToScene(item.rect().center()))
+    depth = 0.0
+    if target_pile.startswith("tableau-"):
+        column = window.game.state.tableau[target_pile]
+        depth = min(
+            40.0,
+            sum(14.0 if not c.face_up else scene.fan_up for c in column.cards_bottom_to_top()),
+        )
+    target_pos = scene.slot_position(target_pile) + QPointF(0.0, depth)
+
+    QTest.mousePress(
+        view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start
+    )
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), start + QPoint(16, 8))
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), _viewport_center(view, target_pos))
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), _viewport_center(view, target_pos))
+    app.processEvents()
+    QTest.mouseRelease(
+        view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _viewport_center(view, target_pos),
+    )
+    app.processEvents()
+    scene.settle_all()
+    app.processEvents()
+
+    assert window.game.state.move_count == before_moves + 1
+    zone = scene.card_zone[moving_id]
+    assert zone == target_pile, f"card must land on {target_pile}, got {zone}"
+
+
+def test_manual_drag_to_invalid_target_never_mutates_state(app, window):
+    """Dropping on an illegal pile: state untouched, cards fly home."""
+    from PyQt6.QtCore import QPoint, Qt
+    from PyQt6.QtTest import QTest
+
+    column_id, face_up_ids = _grabable_run(app, window)
+    scene = window.play_workspace.scene
+    view = window.play_workspace.view
+    state = window.game.state
+    cards = state.tableau[column_id].cards_bottom_to_top()
+    face_up = [c for c in cards if c.face_up]
+    moving_id = face_up[-1].card_id
+
+    legal = set(window.game.legal_destinations(column_id, moving_id))
+    illegal_columns = [
+        f"tableau-{n}" for n in range(1, 8) if f"tableau-{n}" not in legal
+    ]
+    if not illegal_columns:
+        pytest.skip("board has no illegal tableau destination")
+    target_column = illegal_columns[0]
+    before_moves = window.game.state.move_count
+
+    item = scene.card_items[moving_id]
+    start = _viewport_center(view, item.mapToScene(item.rect().center()))
+    drop_pos = scene.slot_position(target_column)
+    QTest.mousePress(
+        view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start
+    )
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), start + QPoint(16, 8))
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), _viewport_center(view, drop_pos))
+    app.processEvents()
+    QTest.mouseRelease(
+        view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _viewport_center(view, drop_pos),
+    )
+    app.processEvents()
+    scene.settle_all()
+    app.processEvents()
+
+    assert window.game.state.move_count == before_moves, "invalid drop must not mutate state"
+    # The card returned to its authoritative position.
+    zone = scene.card_zone[moving_id]
+    expected_x = scene.slot_position(zone).x()
+    assert abs(scene.card_items[moving_id].pos().x() - expected_x) < 0.6
+
+
+def test_state_change_during_manual_drag_ends_it_safely(app, window):
+    """An engine state change mid-drag (e.g. keyboard undo) ends the drag."""
+    from PyQt6.QtCore import QPoint, Qt
+    from PyQt6.QtTest import QTest
+
+    column_id, face_up_ids = _grabable_run(app, window)
+    scene = window.play_workspace.scene
+    view = window.play_workspace.view
     item = scene.card_items[face_up_ids[0]]
-    assert item.drag_provider is not None
-    assert item._start_drag() is True
 
-    payload = captured["mime"]
-    assert payload.hasFormat(MIME_TYPE)
-    import json
+    start = _viewport_center(view, item.mapToScene(item.rect().center()))
+    QTest.mousePress(
+        view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start
+    )
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), start + QPoint(30, 10))
+    app.processEvents()
+    assert scene._drag_run
 
-    document = json.loads(bytes(payload.data(MIME_TYPE)))
-    assert document["card_ids"] == face_up_ids
-    assert document["source"] == column_id
+    window.game.draw_from_stock()  # unrelated state change mid-drag
+    app.processEvents()
+    scene.settle_all()
+    app.processEvents()
+
+    assert not scene._drag_run, "sync must end an active drag session"
+    assert not item._dragging
+
+
+def test_reduce_motion_snaps_instead_of_animating(app, window):
+    """Reduce Motion: moves land instantly, gameplay fully functional."""
+    hint = next(
+        h for h in window.game.engine.find_hints() if h.source_pile != "stock"
+    )
+    window.play_workspace.animation.reduce_motion = True
+    try:
+        assert window.game.try_move(hint.source_pile, hint.card_ids[0], hint.destination_pile)
+        app.processEvents()
+        scene = window.play_workspace.scene
+        scene.settle_all()
+        app.processEvents()
+        for card_id, item in scene.card_items.items():
+            zone = scene.card_zone[card_id]
+            if not zone.startswith("tableau-"):
+                continue  # stock/waste fan offsets are cosmetic, skip them
+            slot = scene.slot_position(zone)
+            assert abs(item.pos().x() - slot.x()) < 0.6
+    finally:
+        window.play_workspace.animation.reduce_motion = False
 
 
 def test_many_window_lifecycles_stay_gc_safe(app):

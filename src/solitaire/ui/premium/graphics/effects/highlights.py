@@ -34,12 +34,17 @@ def paint_glow(
     painter.restore()
 
 
-def paint_card_shadow(painter: QPainter, rect: QRectF, radius: float) -> None:
-    """Two-layer soft shadow beneath a card or slot."""
+def paint_card_shadow(painter: QPainter, rect: QRectF, radius: float, boost: float = 0.0) -> None:
+    """Two-layer soft shadow beneath a card or slot.
+
+    `boost` (0..1) deepens and offsets the shadow for hover/drag elevation,
+    making the card read as physically lifted off the felt.
+    """
     painter.save()
+    spread = 1.0 + 0.9 * boost
     for offset, alpha in ((5.0, 46), (2.5, 60)):
-        shadow = QColor(0, 0, 0, alpha)
-        shadow_rect = rect.translated(offset * 0.6, offset)
+        shadow = QColor(0, 0, 0, min(255, int(alpha * (1.0 + 0.8 * boost))))
+        shadow_rect = rect.translated(offset * 0.6 * spread, offset * spread)
         path = QPainterPath()
         path.addRoundedRect(shadow_rect, radius, radius)
         painter.fillPath(path, shadow)

@@ -33,6 +33,7 @@ class CardAnimationManager:
         self.speed_multiplier = 1.0
         self._active: list[QPropertyAnimation] = []
         self._groups: list[QParallelAnimationGroup] = []
+        self._pending: set[QPropertyAnimation] = set()
 
     @classmethod
     def instance(cls) -> CardAnimationManager:
@@ -60,6 +61,7 @@ class CardAnimationManager:
             animation
             for animation in self._active
             if animation.state() == QAbstractAnimation.State.Running
+            or animation in self._pending
         ]
         self._groups = [
             group
@@ -68,24 +70,60 @@ class CardAnimationManager:
         ]
 
     # --- movement ------------------------------------------------------------
-    def animate_move(self, item: QGraphicsObject, from_pos, to_pos, z_value: float,
-                     *, base_ms: int = ANIMATION_MS["move"]) -> QPropertyAnimation | None:
+    def animate_move(
+        self,
+        item: QGraphicsObject,
+        from_pos,
+        to_pos,
+        z_value: float,
+        *,
+        base_ms: int = ANIMATION_MS["move"],
+        bounce: bool = False,
+        delay_ms: int = 0,
+    ) -> QPropertyAnimation | None:
         self._prune()
         duration = self._duration(base_ms)
         if duration <= 0:
             self.snap(item, to_pos, z_value)
             return None
+        # A new movement always supersedes any in-flight animation of the
+        # same item (rapid user actions must never fight over `pos`).
+        self.interrupt_for(item)
         item.setZValue(z_value + 100.0)
         animation = QPropertyAnimation(item, b"pos", self._parent)
         animation.setDuration(duration)
         animation.setStartValue(from_pos)
         animation.setEndValue(to_pos)
         animation.setEasingCurve(QEasingCurve.Type.OutCubic)
-        animation.finished.connect(lambda: self._on_move_finished(item, to_pos, z_value))
+        animation.finished.connect(
+            lambda: self._on_move_finished(item, to_pos, z_value, bounce)
+        )
         self._active.append(animation)
         self._watch_item(item)
-        animation.start()
+        if delay_ms > 0:
+            self._start_later(animation, delay_ms)
+        else:
+            animation.start()
         return animation
+
+    def _start_later(self, animation: QPropertyAnimation, delay_ms: int) -> None:
+        """Start `animation` after `delay_ms` (staggered deals/draws).
+
+        The pending set keeps _prune() from dropping not-yet-started
+        animations; interrupt_all() clears it so an interrupted sequence
+        never starts late.
+        """
+        self._pending.add(animation)
+
+        def _fire() -> None:
+            self._pending.discard(animation)
+            if animation in self._active:
+                try:
+                    animation.start()
+                except RuntimeError:
+                    pass
+
+        QTimer.singleShot(delay_ms, _fire)
 
     def animate_run(self, items_with_targets, z_value: float,
                     *, base_ms: int = ANIMATION_MS["multi_move"]) -> QParallelAnimationGroup | None:
@@ -96,6 +134,8 @@ class CardAnimationManager:
             for item, target in items_with_targets:
                 self.snap(item, target, z_value)
             return None
+        for item, _target in items_with_targets:
+            self.interrupt_for(item)
         group = QParallelAnimationGroup(self._parent)
         for index, (item, target) in enumerate(items_with_targets):
             item.setZValue(z_value + 100.0 + index)
@@ -115,18 +155,44 @@ class CardAnimationManager:
         group.start()
         return group
 
-    def _on_move_finished(self, item: QGraphicsObject, to_pos, z_value: float) -> None:
+    def _on_move_finished(
+        self, item: QGraphicsObject, to_pos, z_value: float, bounce: bool = False
+    ) -> None:
         try:
             item.setPos(to_pos)
             item.setZValue(z_value)
         except RuntimeError:
             # The item's C++ object was destroyed while the animation ran.
-            pass
+            return
+        if bounce:
+            self.settle_pop(item)
 
     def snap(self, item: QGraphicsObject, to_pos, z_value: float) -> None:
         self.interrupt_for(item)
         item.setPos(to_pos)
         item.setZValue(z_value)
+
+    # --- settle pop -----------------------------------------------------------
+    def settle_pop(self, item: QGraphicsObject, base_ms: int = 190) -> None:
+        """Tiny spring scale when a card lands — the 'placed' feel."""
+        if self.reduce_motion:
+            return
+        duration = self._duration(base_ms)
+        if duration <= 0:
+            return
+        try:
+            item.set_pop_scale(0.0)
+            animation = QPropertyAnimation(item, b"pop_scale", self._parent)
+            animation.setDuration(duration)
+            animation.setKeyValueAt(0.0, 0.0)
+            animation.setKeyValueAt(0.45, 1.0)
+            animation.setKeyValueAt(1.0, 0.0)
+            animation.setEasingCurve(QEasingCurve.Type.OutQuad)
+            self._active.append(animation)
+            self._watch_item(item)
+            animation.start()
+        except RuntimeError:
+            pass
 
     # --- flips ------------------------------------------------------------------
     def animate_flip(self, item: QGraphicsObject) -> None:
@@ -279,6 +345,7 @@ class CardAnimationManager:
             group.stop()
         self._active.clear()
         self._groups.clear()
+        self._pending.clear()
 
     def _forget(self, animation) -> None:
         if animation in self._active:

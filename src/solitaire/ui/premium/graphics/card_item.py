@@ -8,13 +8,30 @@ Rendering rules (per the approved reference):
 - bundled royal-blue ornate back for face-down cards;
 - gold selection glow and hint glow driven by animatable properties.
 
+Interaction feel (game-feel upgrade):
+- hover lifts the card off the felt with a softening shadow;
+- selected runs float slightly above the table;
+- drags are *manual* (no QDrag): the grabbed run follows the pointer
+  one-to-one with a velocity tilt and a floating shadow, so the card
+  never lags behind the mouse;
+- landing cards pop with a tiny spring.
+
 Identity: one item per real card, keyed by `card.card_id`. Items are
 reused across scene refreshes and never mutate game state.
 """
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QPoint, QRectF, Qt, pyqtProperty
+from PyQt6.QtCore import (
+    QEasingCurve,
+    QPoint,
+    QPointF,
+    QPropertyAnimation,
+    QRectF,
+    Qt,
+    QTimer,
+    pyqtProperty,
+)
 from PyQt6.QtGui import (
     QColor,
     QFont,
@@ -22,7 +39,6 @@ from PyQt6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
-    QPolygonF,
 )
 from PyQt6.QtWidgets import QGraphicsObject
 
@@ -32,6 +48,9 @@ from solitaire.ui.premium.graphics.effects.highlights import paint_card_shadow, 
 from solitaire.ui.premium.theme import CARD_H, CARD_RADIUS, CARD_W
 
 DRAG_THRESHOLD = 12.0
+HOVER_LIFT_PX = 4.0
+DRAG_LIFT_PX = 10.0
+MAX_TILT_DEG = 6.0
 
 IVORY_TOP = "#FDF9EE"
 IVORY_BOTTOM = "#EFE4C6"
@@ -40,6 +59,7 @@ RED = "#C62828"
 INK = "#1B1E26"
 
 SELECT_GOLD = QColor(240, 199, 94)
+SELECT_MINT = QColor(64, 224, 178)
 HINT_GOLD = QColor(240, 199, 94, 190)
 
 
@@ -59,10 +79,20 @@ class CardGraphicsItem(QGraphicsObject):
         self._highlight = 0.0
         self._hint = 0.0
         self._error_pulse = 0.0
+        self._hover_lift = 0.0
+        self._drag_lift = 0.0
+        self._drag_tilt = 0.0
+        self._pop_scale = 0.0
         self._interactive = True
         self.on_clicked = None  # callback(item) wired by the scene
         self.drag_provider = None  # callback(card_id) -> (card_ids, pile) | None
+        # Manual-drag hooks, wired by the scene: begin/move/finish.
+        self.on_drag_started = None
+        self.on_drag_moved = None
+        self.on_drag_dropped = None
+        self.on_drag_cancelled = None
         self._press_pos: QPoint | None = None
+        self._dragging = False
         self.setAcceptHoverEvents(True)
         self.setZValue(10.0)
 
@@ -89,6 +119,7 @@ class CardGraphicsItem(QGraphicsObject):
         if not interactive:
             self._highlight = 0.0
             self._hint = 0.0
+            self._hover_lift = 0.0
         self.update()
         self.setAcceptHoverEvents(interactive)
         self.unsetCursor()
@@ -130,6 +161,91 @@ class CardGraphicsItem(QGraphicsObject):
 
     error_pulse = pyqtProperty(float, get_error_pulse, set_error_pulse)
 
+    def get_hover_lift(self) -> float:
+        return self._hover_lift
+
+    def set_hover_lift(self, value: float) -> None:
+        self._hover_lift = max(0.0, min(1.0, float(value)))
+        self.update()
+
+    hover_lift = pyqtProperty(float, get_hover_lift, set_hover_lift)
+
+    def get_drag_lift(self) -> float:
+        return self._drag_lift
+
+    def set_drag_lift(self, value: float) -> None:
+        self._drag_lift = max(0.0, min(1.0, float(value)))
+        self.update()
+
+    drag_lift = pyqtProperty(float, get_drag_lift, set_drag_lift)
+
+    def get_drag_tilt(self) -> float:
+        return self._drag_tilt
+
+    def set_drag_tilt(self, value: float) -> None:
+        self._drag_tilt = max(-1.0, min(1.0, float(value)))
+        self.update()
+
+    drag_tilt = pyqtProperty(float, get_drag_tilt, set_drag_tilt)
+
+    def get_pop_scale(self) -> float:
+        return self._pop_scale
+
+    def set_pop_scale(self, value: float) -> None:
+        self._pop_scale = max(0.0, min(1.0, float(value)))
+        self.update()
+
+    pop_scale = pyqtProperty(float, get_pop_scale, set_pop_scale)
+
+    # --- small self-owned animations (destroyed with the item) --------------
+    def _animate_property(self, name: str, target: float, ms: int) -> None:
+        """Animate one of this item's own float properties.
+
+        The QPropertyAnimation is parented to *this item*, so it can never
+        outlive its target — no orphaned animation can write into a dying
+        C++ object (the historical exit-134 abort family).
+        """
+        try:
+            animation = QPropertyAnimation(self, name.encode(), self)
+            animation.setDuration(ms)
+            animation.setStartValue(getattr(self, f"get_{name}")())
+            animation.setEndValue(target)
+            animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+            animation.start()
+        except RuntimeError:
+            pass
+
+    def animate_hover(self, lifted: bool) -> None:
+        if not self._interactive and lifted:
+            return
+        self._animate_property("hover_lift", 1.0 if lifted else 0.0, 130)
+
+    def animate_drag_lift(self, lifted: bool) -> None:
+        self._animate_property("drag_lift", 1.0 if lifted else 0.0, 140)
+
+    def animate_tilt(self, tilt: float, ms: int = 90) -> None:
+        self._animate_property("drag_tilt", tilt, ms)
+
+    def animate_error(self) -> None:
+        """Coral warning ring that flashes once and fades out."""
+        self._animate_property("error_pulse", 1.0, 40)
+        QTimer.singleShot(
+            60, lambda target=self: target._animate_property("error_pulse", 0.0, 420)
+        )
+
+    # --- manual drag session (driven by the scene) ---------------------------
+    def begin_drag_session(self) -> None:
+        self._dragging = True
+        self._press_pos = None
+        self.animate_drag_lift(True)
+        self.setCursor(Qt.CursorShape.ClosedHandCursor)
+
+    def end_drag_session(self) -> None:
+        self._dragging = False
+        self.animate_drag_lift(False)
+        self.animate_tilt(0.0, 140)
+        self.unsetCursor()
+
     def refresh_face(self, *, animated: bool = False) -> None:
         """Sync the painted face with the domain card's face_up flag."""
         target = 0.0 if self._card.face_up else 1.0
@@ -145,7 +261,8 @@ class CardGraphicsItem(QGraphicsObject):
 
     # --- geometry -----------------------------------------------------------
     def boundingRect(self) -> QRectF:
-        return QRectF(-10.0, -10.0, CARD_W + 20.0, CARD_H + 20.0)
+        # Covers hover/drag lift, pop scale (4%) and the 6-degree drag tilt.
+        return QRectF(-16.0, -18.0, CARD_W + 32.0, CARD_H + 34.0)
 
     def rect(self) -> QRectF:
         return QRectF(0.0, 0.0, float(CARD_W), float(CARD_H))
@@ -160,6 +277,23 @@ class CardGraphicsItem(QGraphicsObject):
         rect = self.rect()
         progress = self._flip
 
+        # --- depth transforms: lift, tilt and settle pop --------------------
+        lift = self._hover_lift * HOVER_LIFT_PX + self._drag_lift * DRAG_LIFT_PX
+        selected_extra = self._highlight * 2.0
+        total_lift = lift + selected_extra
+        tilt_deg = self._drag_tilt * MAX_TILT_DEG
+        scale = 1.0 + 0.05 * self._pop_scale
+
+        shadow_boost = max(self._hover_lift, self._drag_lift)
+        if abs(tilt_deg) > 0.05 or scale != 1.0 or total_lift > 0.01:
+            center = rect.center()
+            painter.translate(center.x(), center.y() - total_lift)
+            painter.rotate(tilt_deg)
+            painter.scale(scale, scale)
+            rect = QRectF(-CARD_W / 2.0, -CARD_H / 2.0, float(CARD_W), float(CARD_H))
+        elif total_lift > 0.01:
+            painter.translate(0.0, -total_lift)
+
         if 0.0001 < progress < 0.9999:
             # Mid-flip: squeeze horizontally and switch the face at 50%.
             squeeze = abs(1.0 - 2.0 * progress)
@@ -168,15 +302,16 @@ class CardGraphicsItem(QGraphicsObject):
             painter.translate(-rect.center().x(), -rect.center().y())
 
         show_back = progress >= 0.5
-        paint_card_shadow(painter, rect, CARD_RADIUS)
+        paint_card_shadow(painter, rect, CARD_RADIUS, boost=shadow_boost)
         if show_back:
             self._paint_back(painter, rect)
         else:
             self._paint_face(painter, rect)
 
         if self._highlight > 0.01:
-            paint_glow(painter, rect, CARD_RADIUS, SELECT_GOLD, self._highlight)
-            painter.setPen(QPen(SELECT_GOLD, 2.6))
+            glow_color = SELECT_MINT if self._dragging else SELECT_GOLD
+            paint_glow(painter, rect, CARD_RADIUS, glow_color, self._highlight)
+            painter.setPen(QPen(glow_color, 2.6))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(rect, CARD_RADIUS, CARD_RADIUS)
         if self._hint > 0.01:
@@ -184,9 +319,7 @@ class CardGraphicsItem(QGraphicsObject):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), CARD_RADIUS, CARD_RADIUS)
         if self._error_pulse > 0.01:
-            from PyQt6.QtGui import QColor as _QColor
-
-            painter.setPen(QPen(_QColor(224, 85, 85, int(210 * self._error_pulse)), 3.0))
+            painter.setPen(QPen(QColor(235, 87, 87, int(215 * self._error_pulse)), 3.0))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(rect, CARD_RADIUS, CARD_RADIUS)
 
@@ -282,10 +415,12 @@ class CardGraphicsItem(QGraphicsObject):
     def hoverEnterEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         if self._interactive:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.animate_hover(True)
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event) -> None:  # noqa: N802
         self.unsetCursor()
+        self.animate_hover(False)
         super().hoverLeaveEvent(event)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
@@ -298,42 +433,40 @@ class CardGraphicsItem(QGraphicsObject):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
-        """Start a real QDrag once the press becomes a deliberate drag."""
+        """Begin a manual drag once the press becomes a deliberate move.
+
+        The card itself follows the pointer one-to-one (see the scene's
+        drag session) — no QDrag hand-off, so the card can never lag the
+        cursor and the run stays visually complete while moving.
+        """
         if (
             self._interactive
             and self._press_pos is not None
             and event.buttons() & Qt.MouseButton.LeftButton
-            and self.drag_provider is not None
+            and self.on_drag_started is not None
+            and not self._dragging
         ):
             distance = (event.pos().toPoint() - self._press_pos).manhattanLength()
             if distance >= DRAG_THRESHOLD:
                 self._press_pos = None
-                if self._start_drag():
+                self.on_drag_started(self, event.scenePos())
+                if self._dragging:
                     event.accept()
                     return
+        if self._dragging and self.on_drag_moved is not None:
+            self.on_drag_moved(self, event.scenePos())
+            event.accept()
+            return
         super().mouseMoveEvent(event)
-
-    def _start_drag(self) -> bool:
-        """Begin a QDrag carrying the selected run; True when one started."""
-        payload = self.drag_provider(self.card_id)
-        if not payload:
-            return False
-        from PyQt6.QtGui import QDrag
-        from solitaire.ui.premium.controllers.drag_controller import create_payload
-
-        card_ids, source_pile = payload
-        drag = QDrag(self)
-        drag.setMimeData(create_payload(card_ids, source_pile))
-        drag.setHotSpot(QPoint(24, 24))
-        self.setCursor(Qt.CursorShape.ClosedHandCursor)
-        try:
-            drag.exec(Qt.DropAction.MoveAction)
-        finally:
-            self.unsetCursor()
-        return True
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         if self._interactive and event.button() == Qt.MouseButton.LeftButton:
+            if self._dragging:
+                self._dragging = False
+                if self.on_drag_dropped is not None:
+                    self.on_drag_dropped(self, event.scenePos())
+                event.accept()
+                return
             # The accepted press made this item the mouse grabber, so this
             # release belongs to it even when the cursor drifted off the
             # card or the hover state was never updated (offscreen/tests).

@@ -10,8 +10,9 @@ reconciles to the final engine state.
 from __future__ import annotations
 
 import json
+import math
 
-from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtCore import QPointF, QRectF, Qt, QVariantAnimation
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QPolygonF
 from PyQt6.QtWidgets import (
     QGraphicsObject,
@@ -77,6 +78,17 @@ class GameBoardScene(QGraphicsScene):
         self._selection = selection
         self._animation = None  # set via set_animation_manager
         self._drag_active = False
+        # --- manual drag session state (cards follow the pointer) ----------
+        self._drag_run: list[CardGraphicsItem] = []
+        self._drag_card_ids: list[str] = []
+        self._drag_source: str | None = None
+        self._drag_offsets: list[QPointF] = []
+        self._drag_grab_offset = QPointF()
+        self._drag_legal: set[str] = set()
+        self._drag_velocity = 0.0
+        self._last_drag_pos = QPointF()
+        self._target_pulse: QVariantAnimation | None = None
+        self._pending_bounce: set[str] = set()
 
         # Dynamic layout state (recomputed by `relayout`).
         self.fan_down = 14.0
@@ -228,6 +240,10 @@ class GameBoardScene(QGraphicsScene):
 
     def sync(self, animate: bool = True) -> None:
         """Re-derive all card positions/z-orders from the engine state."""
+        # A state change during an active manual drag (header button,
+        # shortcut) ends the drag first so the projection stays authoritative.
+        if self._drag_run:
+            self._end_drag_session()
         state = self._game.state
         seen: set[str] = set()
         previous_positions: dict[str, QPointF] = {
@@ -289,16 +305,20 @@ class GameBoardScene(QGraphicsScene):
             card_id = item.card_id
             old = previous_positions.get(card_id)
             moved = old is not None and (old - target).manhattanLength() > 0.5
+            bounce = card_id in self._pending_bounce and moved
+            if bounce:
+                self._pending_bounce.discard(card_id)
             if old is None:
                 item.setPos(target)
             elif moved and animate and self._animation is not None:
-                self._animation.animate_move(item, item.pos(), target, z_value)
+                self._animation.animate_move(item, item.pos(), target, z_value, bounce=bounce)
             else:
                 if self._animation is not None:
                     self._animation.snap(item, target, z_value)
                 else:
                     item.setPos(target)
                     item.setZValue(z_value)
+        self._pending_bounce.clear()
 
         # Faces: flip items whose card changed visibility.
         for item, _target, _z, _face in placements:
@@ -358,15 +378,22 @@ class GameBoardScene(QGraphicsScene):
                 interactive = self.card_top.get(card_id, False)
             item.set_interactive(interactive)
 
-    def refresh_highlights(self) -> None:
-        """Apply selection + legal destination effects from the selection."""
-        legal = set(self._selection.legal_destinations())
+    def refresh_highlights(self, drag_legal: set[str] | None = None) -> None:
+        """Apply selection + legal destination effects from the selection.
+
+        During a manual drag `drag_legal` replaces the click-selection as
+        the source of legal targets, and the dragged run glows mint.
+        """
+        legal = set(self._selection.legal_destinations()) if drag_legal is None else set(drag_legal)
         for pile_id, item in self.tableau_items.items():
             item.set_legal_target(pile_id in legal)
         for pile_id, item in self.foundation_items.items():
             item.set_legal_target(pile_id in legal)
 
-        run_ids = set(self._selection.selected_run())
+        if drag_legal is None:
+            run_ids = set(self._selection.selected_run())
+        else:
+            run_ids = set(self._drag_card_ids)
         for card_id, item in self.card_items.items():
             if run_ids:
                 item.set_highlight(1.0 if card_id in run_ids else 0.0)
@@ -413,6 +440,9 @@ class GameBoardScene(QGraphicsScene):
             item = CardGraphicsItem(card)
             item.on_clicked = self._on_card_clicked
             item.drag_provider = self._drag_payload_for
+            item.on_drag_started = self.begin_card_drag
+            item.on_drag_moved = self.update_card_drag
+            item.on_drag_dropped = self.finish_card_drag
             self.card_items[card.card_id] = item
             self.addItem(item)
         else:
@@ -463,6 +493,134 @@ class GameBoardScene(QGraphicsScene):
             return
         self._selection.click_pile(pile_id)
 
+    # --- manual drag session -----------------------------------------------------
+    def begin_card_drag(self, item: CardGraphicsItem, scene_pos: QPointF) -> None:
+        """Start a manual drag: the grabbed run will follow the pointer."""
+        if self._drag_run:
+            return
+        payload = item.drag_provider(item.card_id) if item.drag_provider else None
+        if not payload:
+            return
+        card_ids, source = payload
+        run_items = []
+        for card_id in card_ids:
+            run_item = self.card_items.get(card_id)
+            if run_item is None:
+                return
+            if self._animation is not None:
+                self._animation.interrupt_for(run_item)
+            run_items.append(run_item)
+        self._drag_run = run_items
+        self._drag_card_ids = list(card_ids)
+        self._drag_source = source
+        self._drag_offsets = [run_item.pos() - run_items[0].pos() for run_item in run_items]
+        self._drag_grab_offset = QPointF(scene_pos) - run_items[0].pos()
+        self._last_drag_pos = QPointF(scene_pos)
+        self._drag_velocity = 0.0
+        self._drag_legal = set(self._game.legal_destinations(source, card_ids[0]))
+        for index, run_item in enumerate(run_items):
+            run_item.begin_drag_session()
+            run_item.setZValue(300.0 + index)
+        self._drag_active = True
+        self._selection.clear()
+        self.refresh_highlights(drag_legal=self._drag_legal)
+        self._start_target_pulse()
+
+    def update_card_drag(self, item: CardGraphicsItem, scene_pos: QPointF) -> None:
+        """Move the run with the pointer one-to-one; tilt from velocity."""
+        if not self._drag_run:
+            return
+        leader = self._drag_run[0]
+        target = QPointF(scene_pos) - self._drag_grab_offset
+        velocity = QPointF(scene_pos).x() - self._last_drag_pos.x()
+        self._drag_velocity = 0.7 * self._drag_velocity + 0.3 * velocity
+        tilt = max(-1.0, min(1.0, self._drag_velocity / 30.0))
+        # Velocity is already smoothed; set directly (no per-event animation).
+        leader.set_drag_tilt(tilt)
+        self._last_drag_pos = QPointF(scene_pos)
+        for index, run_item in enumerate(self._drag_run):
+            run_item.setPos(target + self._drag_offsets[index])
+
+    def finish_card_drag(self, item: CardGraphicsItem, scene_pos: QPointF) -> None:
+        """Resolve the drop through the engine; reject safely when invalid."""
+        if not self._drag_run:
+            return
+        run_items = list(self._drag_run)
+        card_ids = list(self._drag_card_ids)
+        source = self._drag_source
+        target_pile = self._pile_id_at(QPointF(scene_pos), exclude=set(card_ids))
+        self._end_drag_session()
+
+        # Optimistic bounce: try_move emits state_changed, and the sync it
+        # triggers attaches the settle pop to these exact cards. Cleared on
+        # rejection so no later move inherits a phantom bounce.
+        self._pending_bounce.update(card_ids)
+        moved = False
+        if target_pile is not None and target_pile != source:
+            moved = self._game.try_move(source, card_ids[0], target_pile)
+
+        if moved:
+            if target_pile.startswith("foundation-"):
+                self._celebrate_foundation(target_pile)
+            self.refresh_highlights()
+        else:
+            self._pending_bounce.clear()
+            if target_pile is not None and target_pile != source:
+                # Rejected by the rules: coral flash + shake, then the run
+                # flies home. The engine never mutated, so `sync` restores
+                # the exact authoritative layout.
+                grabbed = run_items[0]
+                grabbed.animate_error()
+                if self._animation is not None:
+                    self._animation.invalid_shake(grabbed)
+            self.refresh_highlights()
+            self.sync(animate=True)
+
+    def _end_drag_session(self) -> None:
+        self._stop_target_pulse()
+        for run_item in self._drag_run:
+            run_item.end_drag_session()
+        self._drag_run = []
+        self._drag_card_ids = []
+        self._drag_source = None
+        self._drag_offsets = []
+        self._drag_legal = set()
+        self._drag_active = False
+
+    def _start_target_pulse(self) -> None:
+        """Legal targets breathe while a drag is in flight."""
+        if self._animation is None or self._animation.reduce_motion:
+            return
+        if self._target_pulse is not None:
+            return
+        pulse = QVariantAnimation(self)
+        pulse.setDuration(760)
+        pulse.setLoopCount(-1)
+        pulse.setStartValue(0.0)
+        pulse.setEndValue(1.0)
+        pulse.valueChanged.connect(self._on_target_pulse)
+        self._target_pulse = pulse
+        pulse.start()
+
+    def _on_target_pulse(self, value) -> None:
+        phase = 0.5 - 0.5 * math.cos(2.0 * math.pi * float(value))
+        for pile_id in self._drag_legal:
+            slot = self.tableau_items.get(pile_id) or self.foundation_items.get(pile_id)
+            if slot is not None:
+                slot.set_legal_glow(0.55 + 0.45 * phase)
+
+    def _stop_target_pulse(self) -> None:
+        if self._target_pulse is not None:
+            self._target_pulse.stop()
+            self._target_pulse.deleteLater()
+            self._target_pulse = None
+
+    def _celebrate_foundation(self, pile_id: str) -> None:
+        """Distinctive feedback when a card reaches a Foundation."""
+        foundation_item = self.foundation_items.get(pile_id)
+        if foundation_item is not None and self._animation is not None:
+            self._animation.pulse_property(foundation_item, "legal_glow")
+
     # --- Qt drag & drop ----------------------------------------------------------
     def dragEnterEvent(self, event: QGraphicsDragDropEvent) -> None:  # noqa: N802
         if event.mimeData().hasFormat(MIME_TYPE):
@@ -497,16 +655,22 @@ class GameBoardScene(QGraphicsScene):
         self._drag_active = False
         super().dragLeaveEvent(event)
 
-    def _pile_id_at(self, pos: QPointF) -> str | None:
+    def _pile_id_at(self, pos: QPointF, exclude: set[str] | None = None) -> str | None:
+        excluded = exclude or set()
         for pile_id, item in self.foundation_items.items():
             if item.isUnderMouse() or item.sceneBoundingRect().contains(pos):
                 return pile_id
         for pile_id, item in self.tableau_items.items():
             if item.isUnderMouse() or item.sceneBoundingRect().contains(pos):
                 return pile_id
-        # Occupied piles: resolve via cards under the drop point.
+        # Occupied piles: resolve via cards under the drop point, ignoring
+        # the dragged run itself (it hovers exactly under the cursor).
         item = next(
-            (graphics for graphics in self.items(pos) if isinstance(graphics, CardGraphicsItem)),
+            (
+                graphics
+                for graphics in self.items(pos)
+                if isinstance(graphics, CardGraphicsItem) and graphics.card_id not in excluded
+            ),
             None,
         )
         if item is not None:
