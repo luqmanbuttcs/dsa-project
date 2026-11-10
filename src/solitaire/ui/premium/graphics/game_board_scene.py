@@ -38,8 +38,16 @@ from solitaire.ui.premium.theme import (
 )
 
 MARGIN = 30.0
-TOP_ROW_H = float(CARD_H)
-COLUMNS_TOP = TOP_ROW_H + 62.0
+TOP_MARGIN = 18.0
+# Reserved caption band under the top pile row. The Stock and Waste status
+# chips (and the Foundations caption) live *only* inside this band, so the
+# Tableau row can never cover them regardless of fan depth or window size.
+LABEL_BAND = 58.0
+CHIP_GAP_ABOVE = 12.0
+CHIP_HEIGHT = 30.0
+CHIP_GAP_BELOW = 16.0
+assert CHIP_GAP_ABOVE + CHIP_HEIGHT + CHIP_GAP_BELOW == LABEL_BAND
+COLUMNS_TOP = TOP_MARGIN + float(CARD_H) + LABEL_BAND
 SCENE_MARGIN_BOTTOM = 26.0
 
 TABLEAU_GAP = 24
@@ -53,6 +61,11 @@ MAX_GAP = 56.0
 MIN_CONTENT_W = MARGIN * 2 + 7 * CARD_W + 6 * MIN_GAP
 CONTENT_W = MARGIN * 2 + 7 * CARD_W + 6 * TABLEAU_GAP
 CONTENT_H = COLUMNS_TOP + (14 * 6 + 30 * 6 + CARD_H) + SCENE_MARGIN_BOTTOM
+
+
+def columns_top_for() -> float:
+    """Scene y where the Tableau row starts (top of the reserved caption band)."""
+    return COLUMNS_TOP
 
 
 class GameBoardScene(QGraphicsScene):
@@ -132,8 +145,11 @@ class GameBoardScene(QGraphicsScene):
         content_w = 7 * CARD_W + 6 * gap
         x0 = max(MARGIN, (width - content_w) / 2.0)
 
-        top_y = 18.0
-        columns_top = CARD_H + 46.0
+        top_y = TOP_MARGIN
+        # The caption band is a fixed scene-space reservation, so the chips
+        # under Stock/Waste stay collision-free at every viewport size; the
+        # view scales the whole board uniformly when space is tight.
+        columns_top = top_y + CARD_H + LABEL_BAND
 
         self._slots["stock"] = QPointF(x0, top_y)
         self._slots["waste"] = QPointF(x0 + CARD_W + STOCK_WASTE_GAP, top_y)
@@ -174,8 +190,10 @@ class GameBoardScene(QGraphicsScene):
 
         label_rect = self._foundation_label.boundingRect()
         label_center = foundation_x + foundations_width / 2.0
+        # Centred inside the reserved caption band, below the foundation row.
         self._foundation_label.setPos(
-            label_center - label_rect.width() / 2.0, CARD_H + 14.0
+            label_center - label_rect.width() / 2.0,
+            top_y + CARD_H + 15.0,
         )
 
         self.sync(animate=False)
@@ -293,6 +311,7 @@ class GameBoardScene(QGraphicsScene):
             len(stock_cards),
             len(stock_cards) == 0 and not state.waste.is_empty(),
         )
+        self.waste_item.set_state(len(waste_cards))
         for suit in Suit:
             pile_id = f"foundation-{suit.code.lower()}"
             self.foundation_items[pile_id].set_occupied(not state.foundations[suit].is_empty())

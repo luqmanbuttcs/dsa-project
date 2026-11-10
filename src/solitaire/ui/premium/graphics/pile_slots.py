@@ -2,11 +2,70 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QRectF, Qt, pyqtProperty
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtProperty
+from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QGraphicsObject
 
 from solitaire.ui.premium.graphics.effects.highlights import paint_glow
+
+
+def paint_status_chip(
+    painter: QPainter,
+    rect: QRectF,
+    label: str,
+    detail: str,
+    *,
+    accent: QColor | None = None,
+) -> None:
+    """Paint a compact premium game-status chip centred in `rect`.
+
+    Renders `LABEL  •  DETAIL` on one line — the label in gold, the bullet
+    and detail in ivory — inside a deep navy pill with a luminous accent
+    dot. Used for the Stock/Waste captions that live in the scene's
+    reserved caption band.
+    """
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+    pill = QPainterPath()
+    pill.addRoundedRect(rect, rect.height() / 2.0, rect.height() / 2.0)
+    painter.fillPath(pill, QColor(8, 18, 32, 238))
+    painter.setPen(QPen(QColor(36, 57, 90), 1.0))
+    painter.drawPath(pill)
+
+    # Luminous accent dot inside the left cap of the pill.
+    dot_color = accent if accent is not None else QColor(240, 199, 94)
+    dot_center = QPointF(rect.left() + rect.height() / 2.0, rect.center().y())
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(dot_color)
+    painter.drawEllipse(dot_center, 3.0, 3.0)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(QPen(QColor(dot_color.red(), dot_color.green(), dot_color.blue(), 90), 1.0))
+    painter.drawEllipse(dot_center, 5.2, 5.2)
+
+    font = QFont("DejaVu Sans")
+    font.setPixelSize(11)
+    font.setBold(True)
+    font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.7)
+    painter.setFont(font)
+    metrics = QFontMetricsF(font)
+    bullet = " • "
+    total = metrics.horizontalAdvance(label) + metrics.horizontalAdvance(bullet) + metrics.horizontalAdvance(detail)
+    # Centre the text in the area right of the accent dot, never over it.
+    area_left = dot_center.x() + 9.0
+    area_right = rect.right() - 12.0
+    left = (area_left + area_right) / 2.0 - total / 2.0
+    baseline = rect.center().y() + metrics.ascent() / 2.0 - metrics.descent() / 3.0
+
+    painter.setPen(QPen(QColor("#E8C766")))
+    painter.drawText(QPointF(left, baseline), label)
+    left += metrics.horizontalAdvance(label)
+    painter.setPen(QPen(QColor(159, 176, 198)))
+    painter.drawText(QPointF(left, baseline), bullet)
+    left += metrics.horizontalAdvance(bullet)
+    painter.setPen(QPen(QColor("#F2EEE2")))
+    painter.drawText(QPointF(left, baseline), detail)
+    painter.restore()
 
 
 class PileSlotItem(QGraphicsObject):

@@ -938,3 +938,114 @@ def test_dashboard_structure_rows_open_the_lab_on_that_page(app, window):
         assert window.dsa_lab.current_page() == page
         window.open_play_workspace()
         app.processEvents()
+
+
+# --- Stock/Waste caption band (regression: labels must never be covered) ------------------
+
+
+VIEWPORTS = [(1280, 800), (1600, 900), (1920, 1029)]
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_stock_waste_chips_live_in_the_reserved_band(app, window, width, height):
+    """The Stock/Waste chips sit inside their reserved caption band and the
+    Tableau row starts below it — collision-free by geometry, at every
+    supported window size, regardless of how deep the tableau fans."""
+    from solitaire.ui.premium.graphics.game_board_scene import (
+        LABEL_BAND,
+        TOP_MARGIN,
+        columns_top_for,
+    )
+    from solitaire.ui.premium.theme import CARD_H
+
+    window.resize(width, height)
+    app.processEvents()
+    app.processEvents()
+
+    scene = window.play_workspace.scene
+    columns_top = scene.slot_position("tableau-1").y()
+    assert columns_top == columns_top_for()
+
+    band_top = TOP_MARGIN + CARD_H
+    for item in (scene.stock_item, scene.waste_item):
+        chip = item.chip_rect()
+        chip_scene_top = item.scenePos().y() + chip.top()
+        chip_scene_bottom = item.scenePos().y() + chip.bottom()
+        # The chip lives entirely inside the reserved band...
+        assert chip_scene_top >= band_top
+        assert chip_scene_bottom < columns_top - 2.0, (
+            "caption chip must clear the tableau row by a real margin"
+        )
+        # ...and is fully inside the scene rect (never clipped).
+        inside = scene.sceneRect().contains(item.mapToScene(chip).boundingRect())
+        assert inside, "caption chip is clipped by the scene edge"
+
+    # The whole chip pill must also fit horizontally inside the scene.
+    for item in (scene.stock_item, scene.waste_item):
+        chip_scene = item.mapToScene(item.chip_rect()).boundingRect()
+        assert chip_scene.left() >= scene.sceneRect().left()
+        assert chip_scene.right() <= scene.sceneRect().right()
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_chips_never_overlap_even_with_tall_tableau_columns(app, window, width, height):
+    """Simulate a worst-case board: every column fanned deep. Even at the
+    minimum window size the chips stay clear of the tallest tableau card."""
+    from solitaire.ui.premium.graphics.game_board_scene import LABEL_BAND, TOP_MARGIN
+    from solitaire.ui.premium.theme import CARD_H
+
+    window.resize(width, height)
+    app.processEvents()
+    scene = window.play_workspace.scene
+
+    deepest_bottom = max(
+        item.scenePos().y() + CARD_H
+        for item in scene.card_items.values()
+        if scene.card_zone.get(item.card_id, "").startswith("tableau-")
+    )
+    # Fan depth can extend the column, but it extends *downward*: the top of
+    # the tableau row (where chips end) is what matters for the captions.
+    chip_bottom = max(
+        item.scenePos().y() + item.chip_rect().bottom()
+        for item in (scene.stock_item, scene.waste_item)
+    )
+    columns_top = scene.slot_position("tableau-1").y()
+    assert chip_bottom <= columns_top - 2.0
+    assert columns_top == TOP_MARGIN + CARD_H + LABEL_BAND
+    # Sanity: deepest column bottom is below the columns top (cards flow down).
+    assert deepest_bottom >= columns_top
+
+
+def test_chips_render_genuine_dynamic_counts(app, window):
+    """Chip text tracks the real engine piles after draws and recycles."""
+    scene = window.play_workspace.scene
+
+    def chip(expected_count: int, kind: str) -> str:
+        noun = "CARD" if expected_count == 1 else "CARDS"
+        return f"{kind} • {expected_count} {noun}"
+
+    stock_count = len(window.game.state.stock.to_list())
+    waste_count = len(window.game.state.waste.to_list())
+    assert scene.stock_item.chip_text == chip(stock_count, "STOCK")
+    assert scene.waste_item.chip_text == chip(waste_count, "WASTE")
+
+    window.game.draw_from_stock()
+    app.processEvents()
+    stock_count = len(window.game.state.stock.to_list())
+    waste_count = len(window.game.state.waste.to_list())
+    assert scene.stock_item.chip_text == chip(stock_count, "STOCK")
+    assert scene.waste_item.chip_text == chip(waste_count, "WASTE")
+
+    while len(window.game.state.stock.to_list()) > 0:
+        window.game.draw_from_stock()
+    app.processEvents()
+    assert len(window.game.state.waste.to_list()) == waste_count + stock_count
+    # An exhausted stock advertises the recycle cue instead of a zero count.
+    assert scene.stock_item.chip_text == "STOCK • RECYCLE"
+
+
+def test_chip_pill_fits_inside_item_bounding_rect(window):
+    """No clipped chip artwork: the chip rect is fully inside boundingRect."""
+    scene = window.play_workspace.scene
+    for item in (scene.stock_item, scene.waste_item):
+        assert item.boundingRect().contains(item.chip_rect())

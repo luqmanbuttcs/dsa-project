@@ -1,14 +1,19 @@
-"""Stock slot graphics item: ornate layered deck, count label, recycle cue."""
+"""Stock slot graphics item: ornate layered deck, recycle cue, status chip."""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import QGraphicsObject
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
 
-from solitaire.ui.premium.graphics.effects.highlights import paint_rounded_panel
-from solitaire.ui.premium.graphics.pile_slots import PileSlotItem
+from solitaire.ui.premium.graphics.pile_slots import PileSlotItem, paint_status_chip
 from solitaire.ui.premium.theme import CARD_H, CARD_W
+
+# Status chip geometry, in item coordinates. The scene reserves a caption
+# band below the top pile row exactly this tall, so the chip can never be
+# covered by tableau cards (see game_board_scene.LABEL_BAND).
+CHIP_WIDTH = CARD_W + 34.0
+CHIP_HEIGHT = 30.0
+CHIP_GAP_ABOVE = 12.0
 
 
 class StockGraphicsItem(PileSlotItem):
@@ -26,6 +31,24 @@ class StockGraphicsItem(PileSlotItem):
         self._can_recycle = can_recycle
         if changed:
             self.update()
+
+    @property
+    def chip_text(self) -> str:
+        """Human-readable status rendered inside the caption chip."""
+        if self._count == 0 and self._can_recycle:
+            return "STOCK • RECYCLE"
+        noun = "CARD" if self._count == 1 else "CARDS"
+        return f"STOCK • {self._count} {noun}"
+
+    def chip_rect(self) -> QRectF:
+        """Chip rect in item-local coordinates (reserved caption band)."""
+        slot = self.slot_rect()
+        return QRectF(
+            slot.center().x() - CHIP_WIDTH / 2.0,
+            slot.bottom() + CHIP_GAP_ABOVE,
+            CHIP_WIDTH,
+            CHIP_HEIGHT,
+        )
 
     def paint(self, painter: QPainter, option, widget=None) -> None:
         painter.save()
@@ -54,29 +77,20 @@ class StockGraphicsItem(PileSlotItem):
             arrow.closeSubpath()
             painter.drawPath(arrow)
 
-        # "Stock" caption chip with the remaining-card count.
-        chip = QRectF(rect.left() - 14, rect.bottom() + 10, rect.width() + 28, 40)
-        paint_rounded_panel(painter, chip, 12, QColor(8, 18, 32, 235), QColor(36, 57, 90), 1.0)
-        title_font = QFont("DejaVu Sans")
-        title_font.setPixelSize(13)
-        title_font.setBold(True)
-        painter.setFont(title_font)
-        painter.setPen(QPen(QColor("#F2EEE2")))
-        painter.drawText(
-            QRectF(chip.left(), chip.top() + 5, chip.width(), 18),
-            Qt.AlignmentFlag.AlignHCenter,
-            "Stock",
-        )
-        count_font = QFont("DejaVu Sans")
-        count_font.setPixelSize(12)
-        painter.setFont(count_font)
-        painter.setPen(QPen(QColor("#E8C766")))
-        painter.drawText(
-            QRectF(chip.left(), chip.top() + 20, chip.width(), 16),
-            Qt.AlignmentFlag.AlignHCenter,
-            f"({self._count} cards)",
-        )
+        # Premium status chip with the genuine dynamic count.
+        paint_status_chip(painter, self.chip_rect(), "STOCK", self._chip_detail())
         painter.restore()
 
+    def _chip_detail(self) -> str:
+        if self._count == 0 and self._can_recycle:
+            return "RECYCLE"
+        return f"{self._count} {'CARD' if self._count == 1 else 'CARDS'}"
+
     def boundingRect(self) -> QRectF:
-        return QRectF(-22.0, -8.0, CARD_W + 44.0, CARD_H + 66.0)
+        slot = self.slot_rect()
+        chip = self.chip_rect()
+        left = min(slot.left(), chip.left())
+        top = min(slot.top(), chip.top())
+        right = max(slot.right(), chip.right())
+        bottom = max(slot.bottom(), chip.bottom())
+        return QRectF(left - 8.0, top - 8.0, right - left + 16.0, bottom - top + 16.0)
