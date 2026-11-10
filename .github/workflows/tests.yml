@@ -43,3 +43,5 @@ jobs:
 
       - name: Run unit tests
         run: python -m pytest
+      - name: Run interaction sweep
+        run: python tools/interaction_sweep.py
