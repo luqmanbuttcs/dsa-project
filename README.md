@@ -66,18 +66,22 @@ The project documentation is maintained in [docs/](docs/):
 - [x] Dashboard upgrade: per-structure icons and live count badges (click a row to inspect it in the DSA Lab), a player-facing Latest Operation panel (internal HISTORY bookkeeping is never shown), a vertical Recent Player Moves timeline and a gold foundation-progress meter.
 - [x] Game Mode page: Draw 1 / Draw 3 mode cards, Reduce-motion and dashboard switches, animation-speed slider, Deal a New Game and Return to Play Workspace.
 - [x] DSA Lab dashboard overhaul: overview metric cards + structure card grid with live previews, deck-lifecycle visualisation (array), vertical bottom→top stack viewer with TOP badge and pile selector, FRONT/REAR queue strip, expanding node diagram, searchable/filterable dictionary table and filterable event timeline.
-- [x] Functional defect fixes with regression tests: CI exit-134 GC abort during undo/redo (deterministic teardown + animation lifecycle guards), real QDrag initiation from card items, multi-card run selection from any face-up tableau card, the game clock no longer starts on rejected moves, the Latest Operation panel no longer shows HISTORY bookkeeping, and the Move Log no longer duplicates moves after undo. The branch carries **147 passing tests** (113 baseline + 34 premium).
+- [x] Functional defect fixes with regression tests: CI exit-134 GC abort during undo/redo (deterministic teardown + animation lifecycle guards), real QDrag initiation from card items, multi-card run selection from any face-up tableau card, the game clock no longer starts on rejected moves, the Latest Operation panel no longer shows HISTORY bookkeeping, and the Move Log no longer duplicates moves after undo. The merged UI carries **157 passing tests** (113 baseline + 44 premium).
 
 ### Remaining before submission
-- [ ] Review and merge the `feat/premium-pyqt6-ui-rebuild` pull request, then switch the main entry point (`python -m solitaire.main`) to the premium shell.
-- [ ] Complete the manual Windows playtest checklist in [Demo and Playtest Guide](docs/07-demo-and-playtest.md).
+- [x] Review and merge the `feat/premium-pyqt6-ui-rebuild` pull request (#2, merge commit `15442c7`), then switch the main entry point (`python -m solitaire.main`) to the premium shell.
+- [ ] Complete the manual Windows playtest checklist (see the premium-shell checklist in [Windows Manual Playtest Checklist](docs/08-windows-playtest-checklist.md), adapted from the [Demo and Playtest Guide](docs/07-demo-and-playtest.md)).
 - [ ] Capture final screenshots and prepare the live demonstration.
 
-## Running the premium UI
+## Running the game
 
-    python -m solitaire.ui.premium
+`python -m solitaire.main` launches the premium shell by default:
 
-The legacy Phase 4 window remains available via `python -m solitaire.main` until the premium shell is promoted to the default entry point.
+    python -m solitaire.main
+
+The legacy Phase 4 window remains available as a fallback:
+
+    python -m solitaire.main --legacy
 
 ## Development setup (Windows PowerShell)
 
@@ -88,7 +92,7 @@ Use Python 3.12 or another version supported by the selected PyQt6 release.
     python -m pip install --upgrade pip
     python -m pip install -e ".[dev]"
 
-Run the desktop game:
+Run the desktop game (premium shell by default; add `--legacy` for the Phase 4 window):
 
     python -m solitaire.main
 
