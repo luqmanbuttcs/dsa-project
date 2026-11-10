@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from solitaire.ui.premium.components.common.icons import icon_pixmap
 from solitaire.ui.premium.controllers.game_controller import GameController
 from solitaire.ui.premium.dsa_lab.array_inspector import ArrayInspector
 from solitaire.ui.premium.dsa_lab.dictionary_inspector import DictionaryInspector
@@ -52,13 +53,24 @@ class DsaLabWorkspace(QWidget):
         self.back_button = QPushButton("  ← Back to Game")
         self.back_button.setObjectName("goldButton")
         self.back_button.clicked.connect(on_back)
-        top_layout.addWidget(self.back_button)
+        back_row = QHBoxLayout()
+        back_row.setSpacing(10)
+        back_row.addWidget(self.back_button)
+
+        # The flask emblem ties the lab back to the Open DSA Lab affordance
+        # on the Play sidebar — entering the lab reads as the same app.
+        emblem = QLabel()
+        emblem.setPixmap(icon_pixmap("flask", 22))
+        emblem.setFixedSize(24, 24)
+        emblem.setScaledContents(True)
+        back_row.addWidget(emblem)
 
         title = QLabel("DSA Lab — CSC200 Data Structure Inspection")
         title.setObjectName("appTitle")
-        top_layout.addSpacing(10)
-        top_layout.addWidget(title)
-        top_layout.addStretch(1)
+        back_row.addSpacing(4)
+        back_row.addWidget(title)
+        back_row.addStretch(1)
+        top_layout.addLayout(back_row)
         layout.addWidget(top_bar)
 
         tab_row = QWidget()

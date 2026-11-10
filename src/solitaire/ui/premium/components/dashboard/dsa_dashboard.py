@@ -5,6 +5,11 @@ operation-count badges derived from the real OperationTracker, a
 player-facing Latest Operation panel, a refined vertical Recent Player
 Moves timeline, and a polished foundation-progress component. A dedicated
 inspect affordance per structure jumps straight into its DSA Lab page.
+
+The **Open DSA Lab** action is pinned as the sidebar's footer: it sits
+directly below Game Progress when the panels fit the viewport and stays
+fully visible (no scrolling) when the window is short — mandatory at the
+1280×800 minimum size.
 """
 
 from __future__ import annotations
@@ -21,11 +26,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from solitaire.ui.premium.components.common.controls import PanelCard
 from solitaire.ui.premium.components.common.icons import icon_pixmap
 from solitaire.ui.premium.controllers.game_controller import GameController, describe_move
 from solitaire.ui.premium.dsa_lab.data_provider import latest_player_operation, structure_counts
 from solitaire.ui.premium.navigation import LabPage
-from solitaire.ui.premium.theme import DASHBOARD_WIDTH
+from solitaire.ui.premium.theme import DASHBOARD_WIDTH, GOLD_TEXT, TEXT_MUTED
 
 STRUCTURE_ROWS = [
     ("Array / List", "Deck management", "array", LabPage.ARRAY, "#E8C766"),
@@ -57,25 +63,9 @@ PLAYER_OPERATION_LABELS = {
 
 
 def _panel(title: str, icon_name: str | None = None) -> tuple[QFrame, QVBoxLayout]:
-    frame = QFrame()
-    frame.setObjectName("panelCard")
-    layout = QVBoxLayout(frame)
-    layout.setContentsMargins(14, 12, 14, 12)
-    layout.setSpacing(8)
-    heading_row = QHBoxLayout()
-    heading_row.setSpacing(7)
-    if icon_name:
-        icon_label = QLabel()
-        icon_label.setPixmap(icon_pixmap(icon_name, 17))
-        icon_label.setFixedSize(18, 18)
-        icon_label.setScaledContents(True)
-        heading_row.addWidget(icon_label)
-    heading = QLabel(title)
-    heading.setObjectName("panelTitle")
-    heading_row.addWidget(heading)
-    heading_row.addStretch(1)
-    layout.addLayout(heading_row)
-    return frame, layout
+    """Shared premium panel (delegates to the design system)."""
+    panel = PanelCard(title, icon_name)
+    return panel, panel.body()
 
 
 def _body(text: str) -> QLabel:
@@ -122,11 +112,11 @@ class StructureRow(QPushButton):
 
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet(
-            "color: #E8C766; font-weight: bold; font-size: 13px; background: transparent;"
+            f"color: {GOLD_TEXT}; font-weight: bold; font-size: 13px; background: transparent;"
         )
         self.subtitle_label = QLabel(subtitle)
         self.subtitle_label.setStyleSheet(
-            "color: #9FB0C6; font-size: 11px; background: transparent;"
+            f"color: {TEXT_MUTED}; font-size: 11px; background: transparent;"
         )
 
         text_column = QVBoxLayout()
@@ -191,19 +181,30 @@ class TimelineRow(QWidget):
         )
 
 
-class DsaDashboard(QScrollArea):
-    """Compact live summary of the five data structures and recent play."""
+class DsaDashboard(QWidget):
+    """Compact live summary of the five data structures and recent play.
+
+    A scrollable panel column with the Open DSA Lab button pinned beneath
+    it as a footer — the button never scrolls out of view.
+    """
 
     def __init__(self, game: GameController, on_open_lab, parent=None) -> None:
         super().__init__(parent)
         self._game = game
         self._on_open_lab = on_open_lab
+        self.setObjectName("dashboardContent")
         self.setFixedWidth(DASHBOARD_WIDTH)
-        self.setWidgetResizable(True)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        outer.addWidget(self._scroll, 1)
 
         content = QWidget()
-        content.setObjectName("dashboardContent")
         layout = QVBoxLayout(content)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
@@ -227,7 +228,7 @@ class DsaDashboard(QScrollArea):
         latest_frame, latest_layout = _panel("Latest Operation", "bolt" if False else "swap")
         self._latest_title = QLabel("Ready")
         self._latest_title.setStyleSheet(
-            "color: #E8C766; font-weight: bold; font-size: 13px; background: transparent;"
+            f"color: {GOLD_TEXT}; font-weight: bold; font-size: 13px; background: transparent;"
         )
         self._latest_body = QLabel("Deal complete — the table is set.")
         self._latest_body.setObjectName("panelBody")
@@ -245,7 +246,10 @@ class DsaDashboard(QScrollArea):
             history_layout.addWidget(row)
         history_layout.addWidget(self._history_empty)
         history_layout.addStretch(1)
-        layout.addWidget(history_frame)
+        # The history panel absorbs any spare sidebar height so Game Progress
+        # (and the pinned Open DSA Lab button below it) stay visually adjacent
+        # at every window size instead of drifting apart.
+        layout.addWidget(history_frame, 1)
 
         # --- foundation progress ----------------------------------------------
         progress_frame, progress_layout = _panel("Game Progress", "trophy")
@@ -256,16 +260,24 @@ class DsaDashboard(QScrollArea):
         progress_layout.addWidget(self._progress_text)
         layout.addWidget(progress_frame)
 
-        layout.addStretch(1)
+        self._scroll.setWidget(content)
 
+        # --- pinned footer: Open DSA Lab (mandatory) --------------------------
+        # Outside the scroll area: directly below Game Progress when the
+        # panels fit, and still fully visible when they must scroll.
+        footer = QWidget()
+        footer.setObjectName("dashboardFooter")
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(12, 10, 12, 12)
+        footer_layout.setSpacing(0)
         self.open_lab_button = QPushButton("  Open DSA Lab")
-        self.open_lab_button.setObjectName("goldButton")
+        self.open_lab_button.setObjectName("openLabButton")
         self.open_lab_button.setIcon(_flask_icon())
-        self.open_lab_button.setMinimumHeight(42)
+        self.open_lab_button.setMinimumHeight(44)
         self.open_lab_button.clicked.connect(lambda: self._on_open_lab(None))
-        layout.addWidget(self.open_lab_button)
+        footer_layout.addWidget(self.open_lab_button)
+        outer.addWidget(footer)
 
-        self.setWidget(content)
         self.refresh()
 
     # --- refresh ------------------------------------------------------------------
