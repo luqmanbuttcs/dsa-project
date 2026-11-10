@@ -8,6 +8,7 @@ tracker events or the real piles — never simulated or hard-coded.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from solitaire.domain.card import Suit
 from solitaire.domain.game_state import Zone
@@ -385,16 +386,39 @@ def timeline_rows(
         rows.append(
             (
                 event.sequence,
-                event.timestamp,
+                _clock_of(event.timestamp),
                 structure_label,
                 event.operation,
                 event.pile_id or "—",
-                ", ".join(event.card_ids) if event.card_ids else "—",
+                _cards_label(event.card_ids),
                 event.context,
                 event.outcome,
             )
         )
     return rows
+
+
+def _clock_of(timestamp: str) -> str:
+    """ISO timestamp → HH:MM:SS. The date is session noise; the time of day
+    is what a chronological table can actually show without truncation."""
+    try:
+        return datetime.fromisoformat(timestamp).strftime("%H:%M:%S")
+    except ValueError:
+        return timestamp
+
+
+def _cards_label(card_ids: tuple[str, ...] | list[str]) -> str:
+    """Same suit/rank glyphs the rest of the application uses. Long runs
+    (the 28-card deal event) are capped — a fully expanded list would
+    stretch the timeline's Cards column beyond the viewport."""
+    if not card_ids:
+        return "—"
+    from solitaire.ui.premium.dsa_lab.widgets import card_text
+
+    if len(card_ids) > 4:
+        head = " · ".join(card_text(card_id) for card_id in card_ids[:4])
+        return f"{head} (+{len(card_ids) - 4})"
+    return " · ".join(card_text(card_id) for card_id in card_ids)
 
 
 def distinct_operations(tracker: OperationTracker) -> list[str]:

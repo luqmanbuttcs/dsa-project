@@ -33,7 +33,7 @@ class PanelCard(QFrame):
         super().__init__(parent)
         self.setObjectName("panelCard")
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(14, 12, 14, 12)
+        self._layout.setContentsMargins(14, 10, 14, 10)
         self._layout.setSpacing(8)
         if title is not None:
             self._layout.addLayout(self.heading_row(title, icon_name))

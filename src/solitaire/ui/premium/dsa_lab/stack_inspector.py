@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QTableWidget,
     QTableWidgetItem,
@@ -106,6 +107,10 @@ class StackInspector(QWidget):
         operations_column = QVBoxLayout()
         operations_column.addWidget(SectionTitle("Tracked operations on this pile"))
         self._operations_table = make_table(["Operation", "Count"])
+        # Two short columns share the width equally.
+        self._operations_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         operations_column.addWidget(self._operations_table, 0)
 
         # Real suit/face composition of the selected pile — mirrors the Array

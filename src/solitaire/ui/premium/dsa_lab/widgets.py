@@ -78,7 +78,9 @@ class StatChip(QLabel):
     def __init__(self, label: str, value: str = "—", parent=None) -> None:
         super().__init__(f"{label}: {value}", parent)
         self.setObjectName("statChip")
-        self.setWordWrap(True)
+        # Single-line on purpose: a wrapped chip ('Front (next draw):' over
+        # 'C-6') reads as two unrelated labels.
+        self.setWordWrap(False)
 
     def set_value(self, value: str) -> None:
         label = self.text().split(":", 1)[0]

@@ -97,7 +97,7 @@ class StructureRow(QPushButton):
         self.setObjectName("structureRow")
         self.setCursor(self.cursor())
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setFixedHeight(52)
+        self.setFixedHeight(44)
         self._accent = accent
         self._icon_name = icon_name
         self._on_open = on_open
@@ -144,7 +144,7 @@ class TimelineRow(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setFixedHeight(24)
+        self.setFixedHeight(22)
         self._text = ""
         self._time = ""
         self._kind = "success"
@@ -206,8 +206,8 @@ class DsaDashboard(QWidget):
 
         content = QWidget()
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(7)
 
         # --- overview -------------------------------------------------------
         overview_frame, overview_layout = _panel("DSA Overview — Live Structures", "sparkle")
@@ -220,7 +220,7 @@ class DsaDashboard(QWidget):
             row.refresh_icon()
             self._rows[name] = row
             overview_layout.addWidget(row)
-        note = _body("All counters come from the real OperationTracker — nothing is simulated.")
+        note = _body("Live counts from the real OperationTracker.")
         overview_layout.addWidget(note)
         layout.addWidget(overview_frame)
 
@@ -232,14 +232,19 @@ class DsaDashboard(QWidget):
         )
         self._latest_body = QLabel("Deal complete — the table is set.")
         self._latest_body.setObjectName("panelBody")
-        self._latest_body.setWordWrap(True)
+        # Single line: a wrapped body pushed Game Progress behind the pinned
+        # footer at 1600x900; the phrasing stays short enough to fit 362px.
+        self._latest_body.setWordWrap(False)
         latest_layout.addWidget(self._latest_title)
         latest_layout.addWidget(self._latest_body)
         layout.addWidget(latest_frame)
 
         # --- recent player moves (vertical timeline) --------------------------
+        # Five rows: the full mid-game sidebar (overview + latest + history +
+        # progress) must fit the 1600x900 viewport without scrolling; more
+        # slots pushed Game Progress behind the pinned footer.
         history_frame, history_layout = _panel("Recent Player Moves", "clock")
-        self._history_rows = [TimelineRow() for _ in range(8)]
+        self._history_rows = [TimelineRow() for _ in range(5)]
         self._history_empty = QLabel("No moves yet — the table is fresh.")
         self._history_empty.setObjectName("mutedText")
         for row in self._history_rows:
@@ -299,7 +304,7 @@ class DsaDashboard(QWidget):
 
         minutes, seconds = divmod(self._game.elapsed_seconds, 60)
         clock_text = f"{minutes:02d}:{seconds:02d}"
-        events = list(reversed(self._game.engine.move_history[-8:]))
+        events = list(reversed(self._game.engine.move_history[-5:]))
         for index, row in enumerate(self._history_rows):
             if index < len(events):
                 event = events[index]

@@ -5,9 +5,9 @@ from __future__ import annotations
 from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
-    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -69,6 +69,11 @@ class DictionaryInspector(QWidget):
 
         self._table = make_table(
             ["Card ID", "Zone", "Pile", "Position", "Face state"]
+        )
+        # Five short columns share the width equally — a stretch-last 'Face
+        # state' column left half the table as dead space.
+        self._table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
         )
         layout.addWidget(self._table, 1)
 

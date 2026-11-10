@@ -94,6 +94,11 @@ class NodeDiagram(QWidget):
             is_edge = node.card_id in (self._head, self._tail)
             border = QColor(240, 199, 94) if is_edge else QColor(196, 181, 142)
             painter.fillPath(path, QColor(253, 249, 238))
+            # drawPath() strokes AND fills with the live brush; the pointer
+            # arrows below leave green/blue brushes behind, which used to
+            # tint every non-edge node. Stroke only — fillPath already laid
+            # down the ivory face.
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QPen(border, 2.0 if is_edge else 1.2))
             painter.drawPath(path)
 

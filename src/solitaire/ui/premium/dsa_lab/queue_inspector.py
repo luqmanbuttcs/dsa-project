@@ -86,8 +86,10 @@ class QueueInspector(QWidget):
         # --- recent queue operations (fills the lower half with real data) ----
         layout.addWidget(SectionTitle("Recent queue operations"))
         self._ops_table = make_table(["Seq", "Operation", "Card", "Pile"])
-        self._ops_table.verticalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
+        # Balanced equal-width columns: a stretch-last Pile column left more
+        # than half the table as dead space.
+        self._ops_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
         )
         layout.addWidget(self._ops_table, 1)
 

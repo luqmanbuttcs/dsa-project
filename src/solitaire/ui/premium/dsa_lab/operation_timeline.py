@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QTableWidgetItem, QVBoxLayout, QWidget
 
 from solitaire.ui.premium.components.common.controls import FilterLabel, make_table
@@ -91,7 +92,27 @@ class OperationTimeline(QWidget):
         for row_index, row in enumerate(rows):
             for column_index, value in enumerate(row):
                 self._table.setItem(row_index, column_index, QTableWidgetItem(str(value)))
+        # One sizing pass per refresh (cheap); without it the default widths
+        # truncate the timestamp and operation columns with ellipses. Deferred
+        # to the next event-loop tick so the layout has settled. The remaining
+        # viewport width is then handed to the last section explicitly: with
+        # stylesheet-driven headers, stretchLastSection is not recomputed
+        # after a programmatic resize inside the lab's nested scroll areas,
+        # which used to leave the table short of the viewport edge.
+        QTimer.singleShot(0, self._fit_columns)
         self._table.scrollToBottom()
         self._summary.setText(
             f"{len(rows)} events shown — preserved in true chronological order."
         )
+
+    def _fit_columns(self) -> None:
+        """Content-width columns + the last one filling the viewport."""
+        table = self._table
+        header = table.horizontalHeader()
+        table.resizeColumnsToContents()
+        used = sum(header.sectionSize(c) for c in range(table.columnCount()))
+        slack = table.viewport().width() - used
+        if slack > 0:
+            header.resizeSection(
+                table.columnCount() - 1, header.sectionSize(table.columnCount() - 1) + slack
+            )
