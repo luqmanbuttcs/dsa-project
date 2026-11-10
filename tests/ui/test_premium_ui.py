@@ -781,12 +781,19 @@ def test_invalid_drop_shake_survives_then_flies_home(app, window):
         sync_calls.append(1)
         return original_sync(*args, **kwargs)
 
+    # Pin the animation speed: the manager is an application singleton that
+    # restores the user's Game Mode preference from QSettings, so the shake
+    # duration (150ms × 2 × speed) must not depend on the host machine's
+    # persisted settings.
+    manager = CardAnimationManager.instance()
+    original_speed = manager.speed_multiplier
+    manager.speed_multiplier = 1.0
+
     scene.sync = _counting_sync
     try:
         drag_pos = _drop_run_on(app, window, scene, view, column_id, moving_id,
                                 scene.slot_position(illegal_columns[0]))
         item = scene.card_items[moving_id]
-        manager = CardAnimationManager.instance()
         # 1. The fly-home sync is deferred: nothing reconciled during the drop.
         assert sync_calls == [], "fly-home sync must be deferred until the shake ends"
         assert state.move_count == before_moves, "invalid drop must not mutate state"
@@ -803,9 +810,10 @@ def test_invalid_drop_shake_survives_then_flies_home(app, window):
         assert abs(item.pos().x() - home_x) > 2.0, "fly-home must not start with the shake"
         # 4. After the shake window the deferred sync fires exactly once and
         #    a movement animation carries the run home.
-        QTest.qWait(int(ANIMATION_MS["invalid"] * 2 * 1.4) + 40)
+        QTest.qWait(int(ANIMATION_MS["invalid"] * 2 * 1.4) + 60)
         assert len(sync_calls) == 1, "deferred fly-home sync must fire exactly once"
     finally:
+        manager.speed_multiplier = original_speed
         scene.sync = original_sync
         scene.settle_all()
 
