@@ -14,12 +14,15 @@ from PyQt6.QtCore import QPointF, QRectF, QVariantAnimation, Qt
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QGraphicsObject
 
-PARTICLE_COUNT = 13
-BURST_MS = 620
-MAX_RADIUS = 58.0
+PARTICLE_COUNT = 14
+BURST_MS = 680
+MAX_RADIUS = 96.0
+START_DELAY_MS = 130  # bloom after the landed card settles
 
 GOLD = QColor(240, 199, 94)
+GOLD_BRIGHT = QColor(255, 236, 170)
 MINT = QColor(64, 224, 178)
+SHADOW = QColor(6, 20, 12, 150)
 
 
 class ParticleBurstItem(QGraphicsObject):
@@ -45,7 +48,17 @@ class ParticleBurstItem(QGraphicsObject):
         self._animation.finished.connect(self._on_finished)
 
     def start(self) -> None:
-        self._animation.start()
+        from PyQt6.QtCore import QTimer
+
+        # A short beat after landing: the burst blooms around the settled
+        # card where gold-on-felt reads clearly (never buried on ivory).
+        QTimer.singleShot(START_DELAY_MS, self._begin)
+
+    def _begin(self) -> None:
+        try:
+            self._animation.start()
+        except RuntimeError:
+            pass
 
     def boundingRect(self) -> QRectF:
         radius = MAX_RADIUS + 10.0
@@ -75,18 +88,27 @@ class ParticleBurstItem(QGraphicsObject):
         ease_out = 1.0 - (1.0 - progress) ** 2
         radius = MAX_RADIUS * ease_out
         fade = max(0.0, 1.0 - progress)
+        # Dark halo pass first so motes read on any surface (felt or ivory).
+        for angle, speed, size, color in self._particles:
+            distance = radius * speed
+            x = self._center.x() + math.cos(angle) * distance
+            y = self._center.y() + math.sin(angle) * distance * 0.82
+            halo = QColor(SHADOW)
+            halo.setAlpha(int(140 * fade))
+            painter.setPen(QPen(halo, size + 2.2))
+            painter.drawPoint(QPointF(x, y))
         for angle, speed, size, color in self._particles:
             distance = radius * speed
             x = self._center.x() + math.cos(angle) * distance
             y = self._center.y() + math.sin(angle) * distance * 0.82  # slight ellipse
-            mote = QColor(color)
-            mote.setAlpha(int(230 * fade))
-            painter.setPen(QPen(mote, size))
+            core = QColor(GOLD_BRIGHT if color is GOLD else color)
+            core.setAlpha(int(240 * fade))
+            painter.setPen(QPen(core, size))
             painter.drawPoint(QPointF(x, y))
         # Expanding halo ring at low alpha for the "placed" chime feel.
-        ring = QColor(GOLD)
-        ring.setAlpha(int(80 * fade))
-        painter.setPen(QPen(ring, 2.0))
+        ring = QColor(GOLD_BRIGHT)
+        ring.setAlpha(int(110 * fade))
+        painter.setPen(QPen(ring, 2.2))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(self._center, radius * 0.7, radius * 0.7)
+        painter.drawEllipse(self._center, radius * 0.72, radius * 0.72)
         painter.restore()
