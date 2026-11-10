@@ -9,7 +9,7 @@ any exception escaping a Qt slot into a collected report instead of the
 PyQt6 default qFatal abort — so one run lists *every* interaction bug
 that would terminate the real app on Windows.
 
-Usage: QT_QPA_PLATFORM=offscreen python scripts/interaction_sweep.py
+Usage: QT_QPA_PLATFORM=offscreen python tools/interaction_sweep.py
 Exit 0 + 'SWEEP CLEAN' = no exception escaped any slot; otherwise each
 escaping exception is printed with traceback and the exit code is 1.
 """

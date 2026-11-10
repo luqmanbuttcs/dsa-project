@@ -96,6 +96,18 @@ class PremiumMainWindow(QMainWindow):
         self.victory_overlay = VictoryOverlay(self)
         self.victory_overlay.new_game_button.clicked.connect(self._victory_new_game)
         self.victory_overlay.play_on_button.clicked.connect(self.victory_overlay.dismiss)
+        # Escape must dismiss the celebration no matter which widget holds
+        # focus. The overlay itself takes focus on present() and handles the
+        # key; this window-level shortcut is the safety net for the cases
+        # where focus intentionally stays elsewhere (the board view, a header
+        # button). It is armed only while the overlay is visible so Escape
+        # keeps its default meaning the rest of the time.
+        self._victory_escape = QShortcut(QKeySequence("Escape"), self)
+        self._victory_escape.activated.connect(self._dismiss_victory_if_visible)
+        self._victory_escape.setEnabled(False)
+        self.victory_overlay.dismissed.connect(
+            lambda: self._victory_escape.setEnabled(False)
+        )
 
     # --- navigation --------------------------------------------------------------
     def open_play_workspace(self) -> None:
@@ -164,6 +176,10 @@ class PremiumMainWindow(QMainWindow):
         self.play_workspace.show_hint(hint)
 
     def new_game(self) -> None:
+        if self.victory_overlay.isVisible():
+            # A fresh deal supersedes the celebration; never leave it floating
+            # over a new board.
+            self.victory_overlay.dismiss()
         if self.game.state.move_count > 0 and not self.game.is_won:
             answer = QMessageBox.question(
                 self,
@@ -243,6 +259,11 @@ class PremiumMainWindow(QMainWindow):
             self.game.elapsed_seconds,
             reduce_motion=self._reduce_motion,
         )
+        self._victory_escape.setEnabled(True)
+
+    def _dismiss_victory_if_visible(self) -> None:
+        if self.victory_overlay.isVisible():
+            self.victory_overlay.dismiss()
 
     def _victory_new_game(self) -> None:
         self.victory_overlay.dismiss()

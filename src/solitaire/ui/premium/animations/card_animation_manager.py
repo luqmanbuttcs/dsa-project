@@ -260,12 +260,19 @@ class CardAnimationManager:
         self._active.append(animation)
         animation.start()
 
-    def invalid_shake(self, item: QGraphicsObject) -> None:
-        """Brief left-right emphasis on an invalid move; state never changes."""
+    def invalid_shake(self, item: QGraphicsObject) -> QPropertyAnimation | None:
+        """Brief left-right emphasis on an invalid move; state never changes.
+
+        Returns the running animation so callers can chain follow-up work
+        (e.g. the fly-home movement) to its ``finished`` signal, or ``None``
+        when the shake is disabled (Reduce Motion). A new shake supersedes an
+        in-flight one on the same item, mirroring the movement doctrine.
+        """
         self._prune()
+        self.interrupt_for(item)
         duration = self._duration(ANIMATION_MS["invalid"])
         if duration <= 0:
-            return
+            return None
         origin = item.pos()
         animation = QPropertyAnimation(item, b"pos", self._parent)
         animation.setDuration(duration * 2)
@@ -277,6 +284,7 @@ class CardAnimationManager:
         animation.finished.connect(lambda: item.setPos(origin))
         self._active.append(animation)
         animation.start()
+        return animation
 
     # --- lifecycle -----------------------------------------------------------------
     def _watch_item(self, item: QObject) -> None:

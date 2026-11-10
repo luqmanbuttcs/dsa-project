@@ -91,6 +91,12 @@ class GameBoardScene(QGraphicsScene):
         self._last_drag_pos = QPointF()
         self._target_pulse: QVariantAnimation | None = None
         self._pending_bounce: set[str] = set()
+        # Invalid-drop feedback sequencing: the shake plays at the drop point
+        # first, the fly-home sync is deferred to its `finished`. The counter
+        # invalidates a pending callback as soon as anything authoritative
+        # happens (any sync, any new drag) so feedback can never fight real
+        # state projection.
+        self._reject_seq = 0
         self.on_sound = None  # callback(name) wired by the workspace
 
         # Dynamic layout state (recomputed by `relayout`).
@@ -262,6 +268,10 @@ class GameBoardScene(QGraphicsScene):
 
     def sync(self, animate: bool = True, reason: str | None = None) -> None:
         """Re-derive all card positions/z-orders from the engine state."""
+        # Any authoritative reconciliation supersedes a pending invalid-drop
+        # feedback sequence: its deferred fly-home must never fire after (or
+        # during) a sync that projects real state.
+        self._reject_seq += 1
         # A state change during an active manual drag (header button,
         # shortcut) ends the drag first so the projection stays authoritative.
         if self._drag_run:
@@ -551,6 +561,11 @@ class GameBoardScene(QGraphicsScene):
         """Start a manual drag: the grabbed run will follow the pointer."""
         if self._drag_run:
             return
+        # Grabbing during an invalid-drop shake supersedes the pending
+        # fly-home: the interrupt below would otherwise fire the deferred
+        # sync *inside this method*, starting movement animations that fight
+        # the manual drag over `pos`. The next drop syncs instead.
+        self._reject_seq += 1
         payload = item.drag_provider(item.card_id) if item.drag_provider else None
         if not payload:
             return
@@ -620,16 +635,46 @@ class GameBoardScene(QGraphicsScene):
             self.refresh_highlights()
         else:
             self._pending_bounce.clear()
-            if target_pile is not None and target_pile != source:
-                # Rejected by the rules: coral flash + shake, then the run
-                # flies home. The engine never mutated, so `sync` restores
-                # the exact authoritative layout.
-                grabbed = run_items[0]
-                grabbed.animate_error()
-                if self._animation is not None:
-                    self._animation.invalid_shake(grabbed)
             self.refresh_highlights()
+            if target_pile is not None and target_pile != source:
+                # Rejected by the rules: coral flash + shake play here, at
+                # the drop point. The fly-home sync is deferred until the
+                # shake finishes — starting it right away would let the
+                # movement animation manager's interrupt cancel the shake.
+                # The engine never mutated, so the deferred `sync` restores
+                # the exact authoritative layout.
+                self._start_reject_fly_home(run_items[0])
+            else:
+                # Dropped on no pile (or the source pile): no shake, the run
+                # simply returns home.
+                self.sync(animate=True)
+
+    def _start_reject_fly_home(self, grabbed: CardGraphicsItem) -> None:
+        """Coral flash + shake now, fly the run home when the shake ends."""
+        # Invalidate any pending rejection feedback *before* the new shake
+        # may stop the old one (stop() fires its callback synchronously).
+        self._reject_seq += 1
+        token = self._reject_seq
+        grabbed.animate_error()
+        shake = None
+        if self._animation is not None:
+            shake = self._animation.invalid_shake(grabbed)
+        if shake is None:
+            # Reduce Motion (or no manager): skip straight to the return trip.
             self.sync(animate=True)
+            return
+
+        def _fly_home() -> None:
+            try:
+                if token != self._reject_seq:
+                    return  # superseded by a real sync or a newer interaction
+                if self._drag_run:
+                    return  # user grabbed cards again; their drop will sync
+                self.sync(animate=True)
+            except RuntimeError:
+                pass  # scene torn down mid-shake; nothing left to project
+
+        shake.finished.connect(_fly_home)
 
     def _end_drag_session(self) -> None:
         self._stop_target_pulse()

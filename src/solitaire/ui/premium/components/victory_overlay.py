@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import random
 
-from PyQt6.QtCore import QEasingCurve, QPointF, QRectF, QSettings, Qt, QTimer, QVariantAnimation
+from PyQt6.QtCore import QEasingCurve, QPointF, QRectF, QSettings, Qt, QTimer, QVariantAnimation, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
     QGraphicsOpacityEffect,
@@ -72,9 +72,18 @@ class _Confetti:
 class VictoryOverlay(QWidget):
     """Full-area translucent celebration layer above the play workspace."""
 
+    #: Emitted after any dismissal (Escape, backdrop click, either button)
+    #: so the window can disarm its window-level Escape shortcut.
+    dismissed = pyqtSignal()
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        # The overlay must be able to receive key events (Escape) directly:
+        # present() takes focus so the key reaches keyPressEvent even when no
+        # other widget held it, and the window-level shortcut covers the case
+        # where focus intentionally stays elsewhere (e.g. the board view).
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         # Timers first: setVisible(False) below synchronously fires hideEvent.
         self._confetti: list[_Confetti] = []
         self._rng = random.Random()
@@ -170,6 +179,7 @@ class VictoryOverlay(QWidget):
         )
         self.show()
         self.raise_()
+        self.setFocus()
         if not reduce_motion:
             width = float(max(1, self.width()))
             self._confetti = [_Confetti(width, self._rng) for _ in range(90)]
@@ -214,6 +224,7 @@ class VictoryOverlay(QWidget):
     def dismiss(self) -> None:
         self._timer.stop()
         self.hide()
+        self.dismissed.emit()
 
     # --- confetti ---------------------------------------------------------------
     def _step_confetti(self) -> None:

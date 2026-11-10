@@ -718,6 +718,219 @@ def test_manual_drag_to_invalid_target_never_mutates_state(app, window):
     assert abs(scene.card_items[moving_id].pos().x() - expected_x) < 0.6
 
 
+def _drop_run_on(app, window, scene, view, column_id, moving_id, target_scene_pos):
+    """Press, drag and release a face-up run onto `target_scene_pos`.
+
+    Returns the run leader's position just before the release (the shake
+    origin of an invalid drop)."""
+    from PyQt6.QtCore import QPoint, QPointF, Qt
+    from PyQt6.QtTest import QTest
+
+    item = scene.card_items[moving_id]
+    start = _viewport_center(view, item.mapToScene(item.rect().center()))
+    QTest.mousePress(
+        view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start
+    )
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), start + QPoint(16, 8))
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), _viewport_center(view, target_scene_pos))
+    app.processEvents()
+    drag_pos = QPointF(scene.card_items[moving_id].pos())
+    QTest.mouseRelease(
+        view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _viewport_center(view, target_scene_pos),
+    )
+    app.processEvents()
+    return drag_pos
+
+
+def test_invalid_drop_shake_survives_then_flies_home(app, window):
+    """Regression: the fly-home sync used to start immediately after the
+    shake, and the movement manager's interrupt cancelled the shake. Both
+    feedback (shake at the drop point) and the return trip must now be
+    delivered, in that order."""
+    from PyQt6.QtTest import QTest
+
+    from solitaire.ui.premium.theme import ANIMATION_MS
+
+    column_id, face_up_ids = _grabable_run(app, window)
+    scene = window.play_workspace.scene
+    view = window.play_workspace.view
+    scene.settle_all()  # quiesce: no in-flight animations before the drop
+    app.processEvents()
+
+    state = window.game.state
+    moving_id = face_up_ids[-1]
+    legal = set(window.game.legal_destinations(column_id, moving_id))
+    illegal_columns = [
+        f"tableau-{n}" for n in range(1, 8)
+        if f"tableau-{n}" not in legal and f"tableau-{n}" != column_id
+    ]
+    if not illegal_columns:
+        pytest.skip("board has no illegal tableau destination")
+    home_x = scene.slot_position(column_id).x()
+    before_moves = state.move_count
+
+    sync_calls: list[int] = []
+    original_sync = scene.sync
+
+    def _counting_sync(*args, **kwargs):
+        sync_calls.append(1)
+        return original_sync(*args, **kwargs)
+
+    scene.sync = _counting_sync
+    try:
+        drag_pos = _drop_run_on(app, window, scene, view, column_id, moving_id,
+                                scene.slot_position(illegal_columns[0]))
+        item = scene.card_items[moving_id]
+        manager = CardAnimationManager.instance()
+        # 1. The fly-home sync is deferred: nothing reconciled during the drop.
+        assert sync_calls == [], "fly-home sync must be deferred until the shake ends"
+        assert state.move_count == before_moves, "invalid drop must not mutate state"
+        # 2. Right after the drop the shake — and only the shake — is alive.
+        shake_alive = [
+            a for a in manager._active
+            if a.state() == a.state().Running and a.targetObject() is item
+        ]
+        assert shake_alive, "shake must be running right after the invalid drop"
+        assert len(shake_alive) == 1, "no movement animation may fight the shake"
+        # 3. The card is still at the drop point (wobbling), not yet home.
+        assert abs(item.pos().x() - drag_pos.x()) <= 8.0, "shake must play at the drop point"
+        assert abs(drag_pos.x() - home_x) > 30.0, "precondition: drop point far from home"
+        assert abs(item.pos().x() - home_x) > 2.0, "fly-home must not start with the shake"
+        # 4. After the shake window the deferred sync fires exactly once and
+        #    a movement animation carries the run home.
+        QTest.qWait(int(ANIMATION_MS["invalid"] * 2 * 1.4) + 40)
+        assert len(sync_calls) == 1, "deferred fly-home sync must fire exactly once"
+    finally:
+        scene.sync = original_sync
+        scene.settle_all()
+
+    assert scene.card_zone[moving_id] == column_id, "zone must be unchanged by rejection"
+    expected_x = scene.slot_position(column_id).x()
+    assert abs(scene.card_items[moving_id].pos().x() - expected_x) < 0.6, "run must be home"
+    assert state.move_count == before_moves
+
+
+def test_grabbing_during_invalid_shake_supersedes_the_fly_home(app, window):
+    """Grabbing the shaking card again must not start movement animations
+    under the user's hand: the pending fly-home is superseded, the new drag
+    owns the cards, and the next drop reconciles everything."""
+    from PyQt6.QtTest import QTest
+
+    # Reach (deterministically, via seeded hint moves) a state where the top
+    # face-up card of some column has both a legal and an illegal tableau
+    # destination — the re-grab path needs a valid drop after the shake.
+    found = None
+    for _ in range(14):
+        state = window.game.state
+        for pile_id, column in state.tableau.items():
+            face_up = [c for c in column.cards_bottom_to_top() if c.face_up]
+            if not face_up:
+                continue
+            moving = face_up[-1].card_id
+            legal = set(window.game.legal_destinations(pile_id, moving))
+            tab_legal = [
+                f"tableau-{n}" for n in range(1, 8)
+                if f"tableau-{n}" in legal and f"tableau-{n}" != pile_id
+            ]
+            tab_illegal = [
+                f"tableau-{n}" for n in range(1, 8)
+                if f"tableau-{n}" not in legal and f"tableau-{n}" != pile_id
+            ]
+            if tab_legal and tab_illegal:
+                found = (pile_id, moving, tab_legal, tab_illegal)
+                break
+        if found:
+            break
+        hint = next(
+            (h for h in window.game.engine.find_hints() if h.source_pile != "stock"), None
+        )
+        if hint is None:
+            break
+        assert window.game.try_move(hint.source_pile, hint.card_ids[0], hint.destination_pile)
+    if found is None:
+        pytest.skip("seeded board never offers a run with both legal and illegal targets")
+    column_id, moving_id, legal_columns, illegal_columns = found
+
+    scene = window.play_workspace.scene
+    view = window.play_workspace.view
+    scene.settle_all()
+    app.processEvents()
+    before_moves = window.game.state.move_count
+
+    _drop_run_on(app, window, scene, view, column_id, moving_id,
+                 scene.slot_position(illegal_columns[0]))
+    item = scene.card_items[moving_id]
+    manager = CardAnimationManager.instance()
+    assert any(
+        a.state() == a.state().Running and a.targetObject() is item for a in manager._active
+    ), "precondition: shake running"
+
+    # Grab again mid-shake: press, then a deliberate move past the drag
+    # threshold (a drag only starts once the press becomes a move).
+    grab_pos = _viewport_center(view, item.mapToScene(item.rect().center()))
+    from PyQt6.QtCore import QPoint, Qt
+    QTest.mousePress(
+        view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, grab_pos
+    )
+    app.processEvents()
+    QTest.mouseMove(view.viewport(), grab_pos + QPoint(20, 0))
+    app.processEvents()
+    # The interrupted shake's deferred fly-home must NOT have synced.
+    assert scene._drag_run, "a drag session must be active after the grab"
+    target = scene.slot_position(legal_columns[0])
+    QTest.mouseMove(view.viewport(), _viewport_center(view, target))
+    app.processEvents()
+    QTest.mouseRelease(
+        view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+        _viewport_center(view, target),
+    )
+    app.processEvents()
+    scene.settle_all()
+
+    assert state.move_count == before_moves + 1, "legal drop after re-grab must move"
+    new_zone = scene.card_zone[moving_id]
+    assert new_zone == legal_columns[0], f"card must land on {legal_columns[0]}, got {new_zone}"
+
+
+def test_invalid_drop_under_reduce_motion_returns_home_immediately(app, window):
+    """Reduce Motion: no shake animation, but the run still returns home at
+    once — feedback degrades, correctness never does."""
+    column_id, face_up_ids = _grabable_run(app, window)
+    scene = window.play_workspace.scene
+    view = window.play_workspace.view
+    scene.settle_all()
+    app.processEvents()
+
+    state = window.game.state
+    moving_id = face_up_ids[-1]
+    legal = set(window.game.legal_destinations(column_id, moving_id))
+    illegal_columns = [
+        f"tableau-{n}" for n in range(1, 8)
+        if f"tableau-{n}" not in legal and f"tableau-{n}" != column_id
+    ]
+    if not illegal_columns:
+        pytest.skip("board has no illegal tableau destination")
+
+    before_moves = state.move_count
+    manager = CardAnimationManager.instance()
+    manager.reduce_motion = True
+    try:
+        _drop_run_on(app, window, scene, view, column_id, moving_id,
+                     scene.slot_position(illegal_columns[0]))
+        item = scene.card_items[moving_id]
+        assert scene.card_zone[moving_id] == column_id, "zone must be unchanged"
+        expected_x = scene.slot_position(column_id).x()
+        assert abs(item.pos().x() - expected_x) < 0.6, "run must be home immediately"
+        assert state.move_count == before_moves
+    finally:
+        manager.reduce_motion = False
+
+
 def test_state_change_during_manual_drag_ends_it_safely(app, window):
     """An engine state change mid-drag (e.g. keyboard undo) ends the drag."""
     from PyQt6.QtCore import QPoint, Qt
@@ -1353,6 +1566,145 @@ def test_victory_overlay_presents_and_dismisses(app, window):
     # by the overlay itself).
     overlay.present(score=10, moves=2, seconds=3, reduce_motion=True)
     overlay.new_game_button.click()
+    app.processEvents()
+    assert not overlay.isVisible()
+
+
+def test_victory_overlay_escape_dismisses_when_overlay_has_focus(app, window):
+    """Regression: present() must take keyboard focus so a real Escape key
+    press reaches the overlay's own keyPressEvent. QtTest delivers a genuine
+    key event through the application's normal dispatch path."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+
+    overlay = window.victory_overlay
+    overlay.present(score=100, moves=10, seconds=61, reduce_motion=True)
+    app.processEvents()
+    assert overlay.isVisible()
+    assert overlay.hasFocus(), "present() must take focus so Escape arrives directly"
+    QTest.keyClick(overlay, Qt.Key.Key_Escape)
+    app.processEvents()
+    assert not overlay.isVisible()
+
+
+def test_victory_overlay_escape_dismisses_even_when_focus_is_elsewhere(app, window):
+    """Regression: with focus on the board view the overlay's keyPressEvent
+    can never fire — the window-level Escape shortcut must dismiss the
+    overlay instead. Shortcut stays disarmed while the overlay is hidden."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+
+    overlay = window.victory_overlay
+    view = window.play_workspace.view
+    assert not window._victory_escape.isEnabled(), "Escape shortcut must be disarmed by default"
+
+    # Present through the real production path (the game_won handler), which
+    # is what arms the window-level shortcut.
+    window._on_won()
+    view.setFocus()  # the player's focus never left the table
+    app.processEvents()
+    assert overlay.isVisible()
+    assert not overlay.hasFocus()
+    assert window._victory_escape.isEnabled(), "present() must arm the Escape shortcut"
+
+    QTest.keyClick(view, Qt.Key.Key_Escape)
+    app.processEvents()
+    assert not overlay.isVisible()
+    assert not window._victory_escape.isEnabled(), "dismissal must disarm the shortcut"
+
+
+def test_completed_game_opens_victory_overlay_with_real_stats(app, window):
+    """Deterministic prepared win: two real moves build non-trivial numbers,
+    the position is then arranged one move from victory using the real
+    domain structures, and the winning move goes through the real GameEngine.
+    The real `game_won` signal must open the overlay with the actual final
+    score, move count and elapsed time — nothing is faked."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+
+    from solitaire.domain.card import Rank, Suit
+    from solitaire.domain.game_state import GameStatus, TableauColumn
+    from solitaire.structures.stack import Stack
+
+    # 1. Two genuine moves so the clock runs and the counters are non-zero.
+    for _ in range(2):
+        hint = next(
+            (h for h in window.game.engine.find_hints() if h.source_pile != "stock"), None
+        )
+        if hint is None:
+            break
+        assert window.game.try_move(hint.source_pile, hint.card_ids[0], hint.destination_pile)
+    app.processEvents()
+    scene = window.play_workspace.scene
+    scene.settle_all()
+    state = window.game.state
+    assert state.move_count >= 1, "precondition: real moves were made"
+    assert state.status is GameStatus.PLAYING
+    before_score = state.score
+
+    # 2. Collect all 52 real card objects from the live state.
+    all_cards: dict[str, object] = {}
+    for card in state.stock.to_list() + state.waste.to_list():
+        all_cards[card.card_id] = card
+    for suit in Suit:
+        for card in state.foundations[suit].to_list():
+            all_cards[card.card_id] = card
+    for column in state.tableau.values():
+        for card in column.cards_bottom_to_top():
+            all_cards[card.card_id] = card
+    assert len(all_cards) == 52, "every card must stay accounted for"
+
+    by_suit: dict[Suit, list] = {suit: [] for suit in Suit}
+    for card in all_cards.values():
+        by_suit[card.suit].append(card)
+    for cards in by_suit.values():
+        cards.sort(key=lambda c: c.rank)
+
+    # 3. Arrange one-move-from-victory: three complete foundations, spades
+    #    A..Q on the fourth, the spade King alone and face-up on tableau-7.
+    winner_suit = Suit.SPADES
+    for suit in Suit:
+        state.foundations[suit] = Stack()
+        run = by_suit[suit] if suit is not winner_suit else by_suit[suit][:-1]
+        for card in run:
+            card.face_up = True
+            state.foundations[suit].push(card)
+    king = by_suit[winner_suit][-1]
+    assert king.rank is Rank.KING
+    king.face_up = True
+    for column_id in list(state.tableau):
+        state.tableau[column_id] = TableauColumn(column_id)
+    state.tableau["tableau-7"].push(king)
+    state.stock = type(state.stock)()
+    state.waste = Stack()
+    app.processEvents()
+    assert sum(s.size() for s in state.foundations.values()) == 51
+
+    moves_before_win = state.move_count
+
+    # 4. Complete the game through the real engine (rules, tracker, scoring).
+    moved = window.game.try_move(
+        "tableau-7", king.card_id, f"foundation-{winner_suit.code.lower()}"
+    )
+    app.processEvents()
+    scene.settle_all()
+
+    assert moved, "the prepared king-to-foundation move must be legal"
+    assert state.status is GameStatus.WON, "the engine must declare victory"
+    assert state.move_count == moves_before_win + 1
+    assert state.score > before_score, "a foundation move must score"
+
+    # 5. The real game_won signal opened the overlay with the actual numbers.
+    overlay = window.victory_overlay
+    assert overlay.isVisible(), "game_won must open the VictoryOverlay"
+    minutes, rest = divmod(window.game.elapsed_seconds, 60)
+    assert overlay._stat_labels["score"].text() == str(state.score)
+    assert overlay._stat_labels["moves"].text() == str(state.move_count)
+    assert overlay._stat_labels["time"].text() == f"{minutes:02d}:{rest:02d}"
+    assert int(overlay._stat_labels["moves"].text()) >= 1
+
+    # 6. The overlay stays non-blocking: Escape closes it after a real win.
+    QTest.keyClick(overlay, Qt.Key.Key_Escape)
     app.processEvents()
     assert not overlay.isVisible()
 
