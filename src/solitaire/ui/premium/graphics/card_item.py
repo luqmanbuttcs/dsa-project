@@ -301,6 +301,19 @@ class CardGraphicsItem(QGraphicsObject):
         # Covers hover/drag lift, pop scale (4%) and the 6-degree drag tilt.
         return QRectF(-16.0, -18.0, CARD_W + 32.0, CARD_H + 34.0)
 
+    def shape(self) -> QPainterPath:
+        """Use the visible card face for hit testing, not the shadow bounds.
+
+        ``boundingRect`` deliberately includes a generous shadow/lift margin
+        for painting and scene indexing. Using Qt's default shape (the whole
+        bounding rectangle) lets an upper card's invisible shadow margin
+        steal clicks from the exposed strip of the card below it. That makes
+        lower cards in a face-up run difficult to grab reliably.
+        """
+        path = QPainterPath()
+        path.addRoundedRect(self.rect(), CARD_RADIUS, CARD_RADIUS)
+        return path
+
     def rect(self) -> QRectF:
         return QRectF(0.0, 0.0, float(CARD_W), float(CARD_H))
 
