@@ -628,6 +628,12 @@ def _viewport_center(view, scene_pos):
     return view.mapFromScene(scene_pos)
 
 
+def _exposed_grab_point(item, scene):
+    """Point inside the upper exposed strip of a non-top face-up card."""
+    y = min(8.0, scene.fan_up / 2.0)
+    return item.mapToScene(QPointF(item.rect().center().x(), y))
+
+
 def _wait_for_drag_lift(app, item, *, target, at_most=False, timeout_ms=2000.0):
     """Poll the live event loop until the drag-lift property reaches target.
 
@@ -654,7 +660,15 @@ def _wait_for_drag_lift(app, item, *, target, at_most=False, timeout_ms=2000.0):
     return False
 
 
-def test_manual_drag_lifts_the_run_and_follows_the_pointer(app, window):
+def test_card_hit_shape_excludes_shadow_only_area(window):
+    item = next(iter(window.play_workspace.scene.card_items.values()))
+    shape = item.shape()
+
+    assert shape.contains(QPointF(item.rect().center()))
+    assert not shape.contains(QPointF(-5.0, item.rect().center().y()))
+    assert not shape.contains(QPointF(item.rect().right() + 5.0, item.rect().center().y()))
+
+def test_manual_drag_lifts_the_run_and_follows_the_pointer(app, window, full_motion):
     """Press + move starts a real manual drag: run items raise and follow."""
     from PyQt6.QtCore import QPoint, QPointF, Qt
     from PyQt6.QtTest import QTest
@@ -667,7 +681,7 @@ def test_manual_drag_lifts_the_run_and_follows_the_pointer(app, window):
     assert item.get_drag_lift() == 0.0, "the card must start its drag at rest"
     rest_pos = QPointF(item.scenePos())
 
-    start = _viewport_center(view, item.mapToScene(item.rect().center()))
+    start = _viewport_center(view, _exposed_grab_point(item, scene))
     QTest.mousePress(
         view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start
     )
@@ -710,7 +724,7 @@ def test_manual_drag_lifts_the_run_and_follows_the_pointer(app, window):
     assert item.get_drag_lift() == pytest.approx(0.0, abs=0.01)
 
 
-def test_drag_lift_timeline_sweeps_zero_to_one_deterministically(app, window):
+def test_drag_lift_timeline_sweeps_zero_to_one_deterministically(app, window, full_motion):
     """Scrub the real 140ms lift timeline: 0 -> mid-flight -> exactly 1.0.
 
     ``setCurrentTime()`` evaluates the property synchronously while the
@@ -760,7 +774,7 @@ def test_drag_lift_timeline_sweeps_zero_to_one_deterministically(app, window):
     assert _wait_for_drag_lift(app, item, target=0.01, at_most=True)
 
 
-def test_rapid_lift_unlift_keeps_one_animation_writer(app, window):
+def test_rapid_lift_unlift_keeps_one_animation_writer(app, window, full_motion):
     """Releasing mid-lift must leave exactly one writer on drag_lift: the
     superseded lift timeline stopped, the unlift timeline driving the card
     back to an exact 0.0 rest. (Qt >= 6.8 retires same-target+property
@@ -953,7 +967,14 @@ def _drop_run_on(app, window, scene, view, column_id, moving_id, target_scene_po
     return drag_pos
 
 
-def test_invalid_drop_shake_survives_then_flies_home(app, window):
+def test_drop_target_lookup_uses_release_scene_position(window):
+    scene = window.play_workspace.scene
+    target = "tableau-6"
+    point = scene.slot_position(target) + QPointF(20.0, 20.0)
+
+    assert scene._pile_id_at(point) == target
+
+def test_invalid_drop_shake_survives_then_flies_home(app, window, full_motion):
     """Regression: the fly-home sync used to start immediately after the
     shake, and the movement manager's interrupt cancelled the shake. Both
     feedback (shake at the drop point) and the return trip must now be
@@ -1029,7 +1050,7 @@ def test_invalid_drop_shake_survives_then_flies_home(app, window):
     assert state.move_count == before_moves
 
 
-def test_grabbing_during_invalid_shake_supersedes_the_fly_home(app, window):
+def test_grabbing_during_invalid_shake_supersedes_the_fly_home(app, window, full_motion):
     """Grabbing the shaking card again must not start movement animations
     under the user's hand: the pending fly-home is superseded, the new drag
     owns the cards, and the next drop reconciles everything."""
@@ -1155,7 +1176,7 @@ def test_state_change_during_manual_drag_ends_it_safely(app, window):
     view = window.play_workspace.view
     item = scene.card_items[face_up_ids[0]]
 
-    start = _viewport_center(view, item.mapToScene(item.rect().center()))
+    start = _viewport_center(view, _exposed_grab_point(item, scene))
     QTest.mousePress(
         view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start
     )
