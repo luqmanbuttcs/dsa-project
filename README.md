@@ -51,9 +51,33 @@ The project documentation is maintained in [docs/](docs/):
 - [x] Live five-structure DSA Monitor with current state, expandable structure details, latest action summary, and timestamped low-level operation history.
 - [x] Offscreen UI tests for drag/drop acceptance/rejection, animations, monitor events, victory banner, keyboard shortcuts, and resizing.
 
+### Phase 5 — Premium Casino PyQt6 UI rebuild: implemented on `feat/premium-pyqt6-ui-rebuild`
+- [x] Full presentation-layer rebuild in `src/solitaire/ui/premium/` (PyQt6 `QWidget` + `QGraphicsView`/`QGraphicsScene` hybrid; no Tkinter, Pygame, web, or QML).
+- [x] Casino art direction: emerald felt with cached weave texture and vignette, full-width deep-navy header with spade logo, CSC200 DSA Edition badge, gold Time/Moves/Score metric chips, and Hint / Undo / Redo / Settings actions.
+- [x] Fixed right dashboard (410 px = 25.6% of the 1600 px design width) with live structure counts, latest OperationTracker event, recent player moves, and foundation progress.
+- [x] Vector card art generated at build time into local SVG assets (single central suit illustration for A–10, unique court artwork for J/Q/K, royal-blue card backs with a spade crest); rendered through SVG + QPainter, fully offline at runtime.
+- [x] 116×160 px cards, 8 px spacing system, Stock + Waste top-left, four Foundations top-right, seven tableau columns, Move Log + feedback panel beneath the board.
+- [x] `GameController` is the only boundary to the untouched domain layer; every move is delegated to `GameEngine`, QGraphicsItems never mutate game state, and the scene re-projects the authoritative `GameState` after every action.
+- [x] Dedicated full-screen DSA Lab workspace: Overview, Array/List, Stack, Queue, Linked List, Dictionary, Operation Timeline, and Game Stats pages — every number read from the live `OperationTracker` and piles, nothing simulated.
+- [x] `CardAnimationManager` (move 220 ms, flip 200 ms, hint pulse, invalid shake) that never blocks engine state, plus a Reduce Motion option and persisted animation-speed setting.
+- [x] Responsive board layout: the emerald felt table fills the whole game viewport at every supported size (no letterbox bands), the multi-layer gold/brass frame has a bevelled inner edge, and tableau fan spacing adapts to the available height. Cards never shrink inside the scene; a mild uniform scale applies only below the minimum full-size footprint.
+- [x] Upgraded deck artwork: richer suit illustrations, twelve individualised court figures (distinct headgear, held attributes, suit palettes and embroidered robes for every rank × suit), and a baroque royal-blue back with lattice, corner scrollwork, petal ring and central spade crest.
+- [x] Premium header (minted gold medallion logo, zone separators, gradient chips) with a compact mode that guarantees no clipping at 1280×800.
+- [x] Dashboard upgrade: per-structure icons and live count badges (click a row to inspect it in the DSA Lab), a player-facing Latest Operation panel (internal HISTORY bookkeeping is never shown), a vertical Recent Player Moves timeline and a gold foundation-progress meter.
+- [x] Game Mode page: Draw 1 / Draw 3 mode cards, Reduce-motion and dashboard switches, animation-speed slider, Deal a New Game and Return to Play Workspace.
+- [x] DSA Lab dashboard overhaul: overview metric cards + structure card grid with live previews, deck-lifecycle visualisation (array), vertical bottom→top stack viewer with TOP badge and pile selector, FRONT/REAR queue strip, expanding node diagram, searchable/filterable dictionary table and filterable event timeline.
+- [x] Functional defect fixes with regression tests: CI exit-134 GC abort during undo/redo (deterministic teardown + animation lifecycle guards), real QDrag initiation from card items, multi-card run selection from any face-up tableau card, the game clock no longer starts on rejected moves, the Latest Operation panel no longer shows HISTORY bookkeeping, and the Move Log no longer duplicates moves after undo. The branch carries **147 passing tests** (113 baseline + 34 premium).
+
 ### Remaining before submission
+- [ ] Review and merge the `feat/premium-pyqt6-ui-rebuild` pull request, then switch the main entry point (`python -m solitaire.main`) to the premium shell.
 - [ ] Complete the manual Windows playtest checklist in [Demo and Playtest Guide](docs/07-demo-and-playtest.md).
 - [ ] Capture final screenshots and prepare the live demonstration.
+
+## Running the premium UI
+
+    python -m solitaire.ui.premium
+
+The legacy Phase 4 window remains available via `python -m solitaire.main` until the premium shell is promoted to the default entry point.
 
 ## Development setup (Windows PowerShell)
 
