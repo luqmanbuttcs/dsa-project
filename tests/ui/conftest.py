@@ -16,6 +16,9 @@ import gc  # noqa: E402
 import pytest  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
+from solitaire.ui.premium.animations.card_animation_manager import (  # noqa: E402
+    CardAnimationManager,
+)
 from solitaire.ui.premium.main_window import PremiumMainWindow  # noqa: E402
 
 SEED = 1  # deals a deterministic board with a tableau hint (H-2, tableau-5 -> tableau-4)
@@ -40,3 +43,26 @@ def window(app):
     built.deleteLater()
     app.processEvents()
     gc.collect()
+
+
+@pytest.fixture()
+def full_motion(window):
+    """Pin animation policy for tests that assert real cosmetic timelines.
+
+    The app correctly restores Reduce Motion and animation speed from the
+    user's QSettings. Tests of the 140ms lift / rejection shake must not
+    inherit that personal preference, otherwise a valid Reduce Motion setup
+    turns those timelines into zero-duration snaps and makes tests
+    environment-dependent.
+    """
+    original_reduce_motion = window._reduce_motion
+    original_speed = window._speed_multiplier
+
+    window._reduce_motion = False
+    window._speed_multiplier = 1.0
+    window._apply_animation_settings()
+    yield CardAnimationManager.instance()
+
+    window._reduce_motion = original_reduce_motion
+    window._speed_multiplier = original_speed
+    window._apply_animation_settings()
