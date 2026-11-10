@@ -21,11 +21,19 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PyQt6.QtCore import QAbstractAnimation, QPointF, QSettings
+from PyQt6.QtCore import QAbstractAnimation, QPointF, QRect, QSettings, QSize
+from PyQt6.QtGui import QFont
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QLabel, QPushButton, QSlider
+from PyQt6.QtWidgets import (
+    QAbstractScrollArea,
+    QLabel,
+    QPushButton,
+    QSlider,
+    QWidget,
+)
 
 from solitaire.ui.premium.animations.card_animation_manager import CardAnimationManager
+from solitaire.ui.premium.main_window import PremiumMainWindow
 from solitaire.ui.premium.theme import ANIMATION_MS, MIN_WINDOW_H, MIN_WINDOW_W
 
 # The full matrix from the task: 1280x720 and 1366x768 are the short laptop
@@ -38,6 +46,9 @@ WINDOW_SIZES = [
     (1920, 1080),
 ]
 
+# Same deal seed as tests.ui.conftest (deals a deterministic board).
+SEED = 1
+
 
 def _resize(app, window, width, height):
     window.resize(width, height)
@@ -45,21 +56,64 @@ def _resize(app, window, width, height):
     app.processEvents()
 
 
+def _clip_containers(widget) -> list[QWidget]:
+    """The top-level window plus every scroll viewport clipping *widget*.
+
+    These are the containers whose geometry legitimately decides whether
+    the widget can be seen; paint bookkeeping does not.
+    """
+    containers: list[QWidget] = []
+    ancestor = widget.parentWidget()
+    while ancestor is not None:
+        if isinstance(ancestor, QAbstractScrollArea):
+            viewport = ancestor.viewport()
+            if viewport is not None and viewport is not widget:
+                containers.append(viewport)
+        if ancestor is widget.window():
+            containers.append(ancestor)
+            break
+        ancestor = ancestor.parentWidget()
+    return containers
+
+
 def _fully_visible(widget) -> bool:
-    """True when nothing occludes or clips *widget* inside its own rect."""
+    """True when every pixel of *widget* lies inside the window and inside
+    every scroll viewport that clips it.
+
+    This is pure widget geometry, deliberately NOT QWidget.visibleRegion():
+    that region is a paint-bookkeeping construct (backing-store / expose
+    state) whose timing differs per platform and produced Windows-only
+    false negatives for genuinely reachable widgets. A layout contract
+    must be decided by geometry; edge-flush placement (widget edge exactly
+    on the container edge) still counts as visible, genuine overflow does
+    not.
+    """
     if not widget.isVisible():
         return False
-    region = widget.visibleRegion().boundingRect()
-    return (
-        region.width() >= widget.width()
-        and region.height() >= widget.height()
-    )
+    if widget.width() <= 0 or widget.height() <= 0:
+        return False
+    for container in _clip_containers(widget):
+        top_left = widget.mapTo(container, widget.rect().topLeft())
+        bottom_right = widget.mapTo(container, widget.rect().bottomRight())
+        mapped = QRect(top_left, bottom_right)
+        if not container.rect().contains(mapped):
+            return False
+    return True
 
 
 def _reach(app, scroll, widget) -> bool:
     """Scroll *widget* into view and require it to be fully visible."""
     if widget.width() <= 0 or widget.height() <= 0:
         return False
+    content = scroll.widget()
+    if content is not None:
+        # Stylesheet-driven font changes re-polish lazily: without this
+        # flush, ensureWidgetVisible() can scroll against stale geometry
+        # and the widget lands half outside the viewport (an event-loop
+        # timing artifact, not a layout defect). Flush it so the reach
+        # check is decided on final geometry, deterministically.
+        content.updateGeometry()
+        app.processEvents()
     scroll.ensureWidgetVisible(widget, 0, 0)
     app.processEvents()
     app.processEvents()
@@ -205,13 +259,30 @@ def test_play_dashboard_stays_accessible_at_every_size(app, window, width, heigh
     assert button.isVisible(), f"Open DSA Lab hidden at {width}x{height}"
     assert _fully_visible(button), (
         f"Open DSA Lab clipped at {width}x{height}: "
-        f"{button.visibleRegion().boundingRect()} vs {button.geometry()}"
+        f"button {button.geometry().getRect()} inside window "
+        f"{window.rect().getRect()}"
     )
 
     # Game Progress: reachable through the dashboard's own scroll area.
     progress_panel = dashboard._progress.parentWidget()
+    content = dashboard._scroll.widget()
+    assert content.isAncestorOf(progress_panel), (
+        "Game Progress must live inside the dashboard's scroll content"
+    )
     assert _reach(app, dashboard._scroll, progress_panel), (
-        f"Game Progress unreachable at {width}x{height}"
+        f"Game Progress unreachable at {width}x{height}: panel "
+        f"{progress_panel.geometry().getRect()} in viewport "
+        f"{dashboard._scroll.viewport().rect().getRect()} after "
+        f"ensureWidgetVisible"
+    )
+
+    # The scroll content must never demand more width than the viewport
+    # offers: with the horizontal scrollbar policy AlwaysOff, any overflow
+    # would silently make the right edge of every panel (Game Progress
+    # included) unreachable. Every free-text label therefore wraps.
+    assert content.minimumSizeHint().width() <= dashboard._scroll.viewport().width(), (
+        f"sidebar content needs {content.minimumSizeHint().width()}px but the "
+        f"viewport is {dashboard._scroll.viewport().width()}px at {width}x{height}"
     )
 
     # The header (with Hint/Undo/Redo/Settings) and the board stay usable.
@@ -237,29 +308,70 @@ def test_no_important_control_lost_at_the_minimum_size(app, window):
 
 def test_window_transitions_recalculate_the_layout(app, window):
     """Launch -> maximize -> restore -> resize -> maximize keeps every panel
-    fresh: the board refits the viewport and no control goes stale."""
-    from PyQt6.QtCore import QSize
+    fresh: the board refits the viewport and no control goes stale.
 
+    Platform note: on the offscreen platform the maximized geometry is the
+    *virtual screen's* size. That screen can be smaller than the app's own
+    minimum (a 150%-scaled host presents a 533x533 logical screen, so the
+    window lands at 531x531 — a geometry no real window manager can ever
+    produce, because a desktop WM enforces the window minimum). The test
+    therefore asserts exactly what every platform must guarantee: the
+    maximized *state* is entered, the board refits whatever geometry the
+    platform produced, restore returns the exact baseline layout, and the
+    panels stay intact at the maximized-equivalent size (the available
+    geometry, clamped up to the app minimum). Native Windows maximize /
+    minimize / restore remain part of the manual acceptance checklist — an
+    offscreen state transition does not prove WM behavior.
+    """
     view = window.play_workspace.view
     dashboard = window.play_workspace.dashboard
+    design_size = QSize(1600, 900)
 
-    _resize(app, window, 1600, 900)
+    _resize(app, window, design_size.width(), design_size.height())
     baseline = QSize(view.viewport().size())
 
+    # --- maximize: enter the state, refit the produced geometry -----------
     window.showMaximized()
     app.processEvents()
     QTest.qWait(60)
-    maximized = QSize(view.viewport().size())
-    assert maximized != baseline, "maximizing must re-fit the board viewport"
-    assert _fully_visible(dashboard.open_lab_button)
+    assert window.isMaximized(), "the window must enter the maximized state"
+    landed = QSize(window.geometry().size())
+    maximized_viewport = QSize(view.viewport().size())
+    if landed != design_size:
+        assert maximized_viewport != baseline, (
+            "maximizing must re-fit the board viewport"
+        )
+    # Visibility can only be demanded at geometries a real desktop can
+    # produce (>= the app minimum); a sub-minimum virtual screen is an
+    # offscreen artifact, and the clamped phase below covers the real case.
+    minimum = QSize(MIN_WINDOW_W, MIN_WINDOW_H)
+    if landed.expandedTo(minimum) == landed:
+        assert _fully_visible(dashboard.open_lab_button)
 
+    # --- restore: the exact baseline layout must come back ----------------
     window.showNormal()
     app.processEvents()
     QTest.qWait(60)
+    assert not window.isMaximized()
     assert QSize(view.viewport().size()) == baseline, (
         "restoring must recalculate the layout to the restored geometry"
     )
     assert _fully_visible(dashboard.open_lab_button)
+
+    # --- maximize-equivalent size (deterministic on every platform) -------
+    # Real maximize means "fill the screen, never below the app minimum";
+    # emulate that geometry explicitly so the assertion set below holds on
+    # every virtual screen, including 533x533 hosts.
+    available = window.screen().availableGeometry().size()
+    target = available.expandedTo(minimum)
+    _resize(app, window, target.width(), target.height())
+    if target != design_size:
+        assert QSize(view.viewport().size()) != baseline, (
+            "the maximize-sized resize must re-fit the board viewport"
+        )
+    assert _fully_visible(dashboard.open_lab_button), (
+        f"Open DSA Lab clipped at the maximize-equivalent size {target.width()}x{target.height()}"
+    )
 
     _resize(app, window, 1366, 768)
     resized = QSize(view.viewport().size())
@@ -277,10 +389,22 @@ def test_window_transitions_recalculate_the_layout(app, window):
         )
     assert _fully_visible(dashboard.open_lab_button)
 
+    # --- second maximize cycle: same state, same fresh layout -------------
     window.showMaximized()
     app.processEvents()
     QTest.qWait(60)
-    assert QSize(view.viewport().size()) == maximized
+    assert window.isMaximized()
+    assert QSize(view.viewport().size()) == maximized_viewport, (
+        "a second maximize must land on the same freshly calculated layout"
+    )
+    window.showNormal()
+    app.processEvents()
+    QTest.qWait(60)
+    # Restore returns the window to its last normal geometry (1366x768):
+    # the layout calculated for that size must come back intact.
+    assert QSize(view.viewport().size()) == resized, (
+        "restoring after the second maximize must return the last normal layout"
+    )
     assert _fully_visible(dashboard.open_lab_button)
 
 
@@ -410,6 +534,84 @@ def test_finished_and_interrupted_animations_are_retired(app, window, speed_guar
     QTest.qWait(20)
     assert sip.isdeleted(second)
     scene.settle_all()
+
+
+def test_dashboard_survives_a_windows_style_app_font(app):
+    """Windows at 150% DPI renders the point-size application font
+    (QFont(\"DejaVu Sans\", 10)) at ~20px and substitutes the missing
+    family — the conditions that broke Game Progress reachability in the
+    field. The sidebar must stay fully reachable when the app font runs
+    wide: no label may push the scroll content past the viewport width.
+
+    The panel bodies are dynamic: refresh() renders \"<operation> ·
+    <pile id>\", which runs much wider than the initial placeholder, so the
+    test feeds the longest production string the tracker can emit and
+    guards the wrapped rendering of real content, not just the placeholder.
+
+    The wrap contract is stressed with an inline 32px label stylesheet (an
+    app-level QFont cannot reach these labels: the theme stylesheets set
+    font-size and win over QFont). Linux font substitutes render narrower
+    than Windows does, so the stress block is what makes a single-line
+    regression fail loudly and deterministically on every platform: an
+    unwrapped 32px rendering of the 48-character production string demands
+    far more width than the viewport can offer.
+    """
+    font = QFont(app.font())
+    font.setFamily("Segoe UI")  # the substitution Windows picks for DejaVu
+    font.setPixelSize(20)  # 10pt at 144 logical DPI
+    original_font = QFont(app.font())
+    app.setFont(font)
+    window = PremiumMainWindow(seed=SEED)
+    try:
+        window.show()
+        _resize(app, window, 1280, 720)
+        window.open_play_workspace()
+        app.processEvents()
+        dashboard = window.play_workspace.dashboard
+        # Same rendering refresh() produces after a real move, using the
+        # longest operation label + pile id pair in PLAYER_OPERATION_LABELS.
+        dashboard._latest_title.setText("Deck")
+        dashboard._latest_body.setText("Deck list cleared after deal · Spades Foundation")
+        app.processEvents()
+        content = dashboard._scroll.widget()
+        viewport = dashboard._scroll.viewport()
+        assert content.minimumSizeHint().width() <= viewport.width(), (
+            f"sidebar content needs {content.minimumSizeHint().width()}px, "
+            f"viewport offers {viewport.width()}px under a 20px app font"
+        )
+        progress_panel = dashboard._progress.parentWidget()
+        assert _reach(app, dashboard._scroll, progress_panel), (
+            "Game Progress must stay reachable under a wide app font"
+        )
+        assert _fully_visible(dashboard.open_lab_button)
+
+        # --- stress block: wrap or die, on every platform ----------------
+        # Inline stylesheets beat the theme's font-size rules, so this is
+        # the one lever that provably widens the labels everywhere.
+        stress_css = "font-size: 32px; background: transparent;"
+        dashboard._latest_title.setStyleSheet(stress_css)
+        dashboard._latest_body.setStyleSheet(stress_css)
+        dashboard._history_empty.setStyleSheet(stress_css)
+        app.processEvents()
+        # QLabel::fontMetrics() reflects the QFont, not the stylesheet font;
+        # minimumSizeHint() is stylesheet-aware, so guard with its height.
+        assert dashboard._latest_body.minimumSizeHint().height() >= 32, (
+            "the 32px stress stylesheet did not reach the label"
+        )
+        assert content.minimumSizeHint().width() <= viewport.width(), (
+            f"sidebar content needs {content.minimumSizeHint().width()}px, "
+            f"viewport offers {viewport.width()}px under the 32px stress — "
+            f"a free-text label stopped wrapping"
+        )
+        assert _reach(app, dashboard._scroll, progress_panel), (
+            "Game Progress must stay reachable under the 32px stress font"
+        )
+        assert _fully_visible(dashboard.open_lab_button)
+    finally:
+        window.close()
+        window.deleteLater()
+        app.processEvents()
+        app.setFont(original_font)
 
 
 def test_settings_slider_maps_to_manager_and_persists(app, window, speed_guard):

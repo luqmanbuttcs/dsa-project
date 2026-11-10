@@ -232,9 +232,15 @@ class DsaDashboard(QWidget):
         )
         self._latest_body = QLabel("Deal complete — the table is set.")
         self._latest_body.setObjectName("panelBody")
-        # Single line: a wrapped body pushed Game Progress behind the pinned
-        # footer at 1600x900; the phrasing stays short enough to fit 362px.
-        self._latest_body.setWordWrap(False)
+        # The body text is dynamic (operation label + pile id) and platform
+        # fonts substitute differently, so the label must wrap: a single-line
+        # label would push the scroll content wider than the viewport — with
+        # the horizontal scrollbar policy AlwaysOff that silently makes the
+        # right edge of every panel (Game Progress included) unreachable.
+        # The history panel below absorbs spare height and the sidebar scrolls
+        # when the window is short, so an extra wrapped line cannot clip
+        # anything.
+        self._latest_body.setWordWrap(True)
         latest_layout.addWidget(self._latest_title)
         latest_layout.addWidget(self._latest_body)
         layout.addWidget(latest_frame)
@@ -247,6 +253,9 @@ class DsaDashboard(QWidget):
         self._history_rows = [TimelineRow() for _ in range(5)]
         self._history_empty = QLabel("No moves yet — the table is fresh.")
         self._history_empty.setObjectName("mutedText")
+        # Wrap like every other free-text label: platform font substitution
+        # must never be able to push the content wider than the viewport.
+        self._history_empty.setWordWrap(True)
         for row in self._history_rows:
             history_layout.addWidget(row)
         history_layout.addWidget(self._history_empty)
