@@ -826,13 +826,27 @@ class GameBoardScene(QGraphicsScene):
         super().dragLeaveEvent(event)
 
     def _pile_id_at(self, pos: QPointF, exclude: set[str] | None = None) -> str | None:
+        """Resolve a drop using the supplied scene coordinate only.
+
+        ``QGraphicsItem.isUnderMouse()`` describes the real cursor position,
+        not the event's scenePos. During QtTest delivery (and with a moving
+        cursor on slower systems) those can differ, so mixing it with
+        ``contains(pos)`` can select an unrelated pile and turn a rejected
+        drop into a source-pile no-op. Drop routing must be a pure function of
+        the release coordinate.
+        """
         excluded = exclude or set()
         for pile_id, item in self.foundation_items.items():
-            if item.isUnderMouse() or item.sceneBoundingRect().contains(pos):
+            if item.sceneBoundingRect().contains(pos):
                 return pile_id
         for pile_id, item in self.tableau_items.items():
-            if item.isUnderMouse() or item.sceneBoundingRect().contains(pos):
+            if item.sceneBoundingRect().contains(pos):
                 return pile_id
+        if self.stock_item.sceneBoundingRect().contains(pos):
+            return "stock"
+        if self.waste_item.sceneBoundingRect().contains(pos):
+            return "waste"
+
         # Occupied piles: resolve via cards under the drop point, ignoring
         # the dragged run itself (it hovers exactly under the cursor).
         item = next(
@@ -845,10 +859,6 @@ class GameBoardScene(QGraphicsScene):
         )
         if item is not None:
             return self.card_zone.get(item.card_id)
-        if self.stock_item.isUnderMouse():
-            return "stock"
-        if self.waste_item.isUnderMouse():
-            return "waste"
         return None
 
 
