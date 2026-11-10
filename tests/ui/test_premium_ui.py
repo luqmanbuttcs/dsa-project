@@ -14,6 +14,7 @@ import time
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
+from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import QApplication
 
 from solitaire.ui.premium.animations.card_animation_manager import CardAnimationManager
