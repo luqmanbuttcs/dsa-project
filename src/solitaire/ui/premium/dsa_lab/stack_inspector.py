@@ -12,8 +12,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
-    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -21,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from solitaire.domain.card import Suit
+from solitaire.ui.premium.components.common.controls import make_table, strip_scroll
 from solitaire.ui.premium.dsa_lab.data_provider import (
     recent_stack_events,
     stack_pile_composition,
@@ -88,53 +87,25 @@ class StackInspector(QWidget):
         # Vertical bottom→top stack view.
         stack_column = QVBoxLayout()
         stack_column.addWidget(SectionTitle("Card order (bottom → top)"))
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("background: transparent; border: none;")
-        stack_holder = QWidget()
-        holder_layout = QVBoxLayout(stack_holder)
-        holder_layout.setContentsMargins(0, 0, 0, 0)
-        holder_layout.setSpacing(4)
+        scroll, holder_layout = strip_scroll()
         self._stack_list = QVBoxLayout()
         self._stack_list.setSpacing(3)
         holder_layout.addLayout(self._stack_list)
         holder_layout.addStretch(1)
-        scroll.setWidget(stack_holder)
         stack_column.addWidget(scroll, 3)
 
         # Recent real tracker events for the selected pile (fills the lower
         # left with live data, mirroring the Queue page's operation table).
         stack_column.addSpacing(4)
         stack_column.addWidget(SectionTitle("Recent events on this pile"))
-        self._events_table = QTableWidget(0, 4)
-        self._events_table.setHorizontalHeaderLabels(["Seq", "Operation", "Card", "Context"])
-        self._events_table.verticalHeader().setVisible(False)
-        self._events_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._events_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._events_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self._events_table.horizontalHeader().setStretchLastSection(True)
-        self._events_table.horizontalHeader().setStyleSheet(
-            "color: #E8C766; font-weight: bold; background: #13253D;"
-        )
-        self._events_table.setAlternatingRowColors(True)
-        self._events_table.setStyleSheet(
-            "QTableWidget { background: #0D1B2E; alternate-background-color: #10203A; }"
-        )
+        self._events_table = make_table(["Seq", "Operation", "Card", "Context"])
         stack_column.addWidget(self._events_table, 2)
         columns.addLayout(stack_column, 3)
 
         # Operations table.
         operations_column = QVBoxLayout()
         operations_column.addWidget(SectionTitle("Tracked operations on this pile"))
-        self._operations_table = QTableWidget(0, 2)
-        self._operations_table.setHorizontalHeaderLabels(["Operation", "Count"])
-        self._operations_table.horizontalHeader().setStretchLastSection(True)
-        self._operations_table.verticalHeader().setVisible(False)
-        self._operations_table.horizontalHeader().setStyleSheet(
-            "color: #E8C766; font-weight: bold; background: #13253D;"
-        )
+        self._operations_table = make_table(["Operation", "Count"])
         operations_column.addWidget(self._operations_table, 0)
 
         # Real suit/face composition of the selected pile — mirrors the Array

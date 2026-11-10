@@ -9,12 +9,12 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QScrollArea,
-    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from solitaire.ui.premium.components.common.controls import make_table
 from solitaire.ui.premium.dsa_lab.data_provider import queue_report, recent_queue_events
 from solitaire.ui.premium.dsa_lab.widgets import (
     LiveBadge,
@@ -85,21 +85,10 @@ class QueueInspector(QWidget):
 
         # --- recent queue operations (fills the lower half with real data) ----
         layout.addWidget(SectionTitle("Recent queue operations"))
-        self._ops_table = QTableWidget(0, 4)
-        self._ops_table.setHorizontalHeaderLabels(["Seq", "Operation", "Card", "Pile"])
-        self._ops_table.verticalHeader().setVisible(False)
-        self._ops_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._ops_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._ops_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self._ops_table.horizontalHeader().setStretchLastSection(True)
-        self._ops_table.horizontalHeader().setStyleSheet(
-            "color: #E8C766; font-weight: bold; background: #13253D;"
-        )
+        self._ops_table = make_table(["Seq", "Operation", "Card", "Pile"])
         self._ops_table.verticalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
-        self._ops_table.setAlternatingRowColors(True)
-        self._ops_table.setStyleSheet("QTableWidget { background: #0D1B2E; alternate-background-color: #10203A; }")
         layout.addWidget(self._ops_table, 1)
 
     def refresh(self) -> None:

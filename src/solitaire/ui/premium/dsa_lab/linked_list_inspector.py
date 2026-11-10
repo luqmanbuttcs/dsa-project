@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from solitaire.ui.premium.components.common.controls import FilterLabel, make_table
 from solitaire.ui.premium.dsa_lab.data_provider import (
     linked_list_report,
     recent_linked_list_events,
@@ -141,8 +142,7 @@ class LinkedListInspector(QWidget):
 
         selector_row = QHBoxLayout()
         selector_row.setSpacing(8)
-        selector_label = QLabel("Tableau column:")
-        selector_label.setStyleSheet("color: #F2EEE2; background: transparent;")
+        selector_label = FilterLabel("Tableau column:")
         selector_row.addWidget(selector_label)
         self._column_selector = QComboBox()
         for index in range(1, 8):
@@ -193,22 +193,9 @@ class LinkedListInspector(QWidget):
 
         layout.addSpacing(4)
         layout.addWidget(SectionTitle("Recent events on this column"))
-        self._events_table = QTableWidget(0, 4)
-        self._events_table.setHorizontalHeaderLabels(["Seq", "Operation", "Card(s)", "Context"])
-        self._events_table.verticalHeader().setVisible(False)
-        self._events_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._events_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._events_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self._events_table.horizontalHeader().setStretchLastSection(True)
-        self._events_table.horizontalHeader().setStyleSheet(
-            "color: #E8C766; font-weight: bold; background: #13253D;"
-        )
+        self._events_table = make_table(["Seq", "Operation", "Card(s)", "Context"])
         self._events_table.verticalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
-        )
-        self._events_table.setAlternatingRowColors(True)
-        self._events_table.setStyleSheet(
-            "QTableWidget { background: #0D1B2E; alternate-background-color: #10203A; }"
         )
         layout.addWidget(self._events_table, 1)
 

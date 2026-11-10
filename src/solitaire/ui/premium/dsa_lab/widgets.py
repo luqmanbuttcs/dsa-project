@@ -1,4 +1,8 @@
-"""Small shared widgets for the DSA Lab inspectors."""
+"""Small shared widgets for the DSA Lab inspectors.
+
+Every color here comes from the theme tokens (single application-wide
+identity) — no page-local hex values.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,23 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
+from solitaire.ui.premium.components.common.controls import SectionTitle
 from solitaire.ui.premium.components.common.icons import icon_pixmap
+from solitaire.ui.premium.theme import GOLD_BRIGHT, GOLD_DIM, OK_GREEN, TEXT_PRIMARY
+
+__all__ = [
+    "SectionTitle",
+    "StatChip",
+    "MetricCard",
+    "MiniCardChip",
+    "NodeCell",
+    "LiveBadge",
+    "PileTag",
+    "card_text",
+    "card_color",
+    "cards_brief",
+    "clear_layout",
+]
 
 
 def card_text(card_id: str) -> str:
@@ -52,19 +72,12 @@ def cards_brief(card_ids: tuple[str, ...] | list[str] | None) -> str:
     return head if len(card_ids) == 1 else f"{head} (+{len(card_ids) - 1})"
 
 
-class SectionTitle(QLabel):
-    def __init__(self, text: str, parent=None) -> None:
-        super().__init__(text, parent)
-        self.setObjectName("panelTitle")
-        self.setStyleSheet("font-size: 15px; font-weight: bold; color: #E8C766; margin-bottom: 2px;")
-
-
 class StatChip(QLabel):
     """Inline key/value stat text."""
 
     def __init__(self, label: str, value: str = "—", parent=None) -> None:
         super().__init__(f"{label}: {value}", parent)
-        self.setStyleSheet("color: #F2EEE2; font-size: 13px; background: transparent;")
+        self.setObjectName("statChip")
         self.setWordWrap(True)
 
     def set_value(self, value: str) -> None:
@@ -143,7 +156,7 @@ class MiniCardChip(QFrame):
         font.setBold(True)
         label.setFont(font)
         if face_down or card_id is None:
-            label.setStyleSheet("color: #E9E2CC; background: transparent;")
+            label.setStyleSheet(f"color: {TEXT_PRIMARY}; background: transparent;")
         else:
             color = card_color(card_id)
             label.setStyleSheet(f"color: {color}; background: transparent;")
@@ -188,7 +201,9 @@ class NodeCell(QFrame):
         next_label = QLabel("→" if has_next else "·")
         for label in (prev_label, next_label):
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setStyleSheet("color: #E8C766; font-size: 13px; background: transparent;")
+            label.setStyleSheet(
+                f"color: {GOLD_BRIGHT}; font-size: 13px; background: transparent;"
+            )
         pointer_row.addWidget(prev_label)
         pointer_row.addStretch(1)
         pointer_row.addWidget(next_label)
@@ -201,8 +216,8 @@ class LiveBadge(QLabel):
     def __init__(self, parent=None) -> None:
         super().__init__("● Live", parent)
         self.setStyleSheet(
-            "color: #37B96E; font-size: 11px; font-weight: bold;"
-            "border: 1px solid #37B96E; border-radius: 9px; padding: 2px 10px;"
+            f"color: {OK_GREEN}; font-size: 11px; font-weight: bold;"
+            f"border: 1px solid {OK_GREEN}; border-radius: 9px; padding: 2px 10px;"
             "background: rgba(55, 185, 110, 0.08);"
         )
 
@@ -213,7 +228,7 @@ class PileTag(QLabel):
     def __init__(self, text: str, parent=None) -> None:
         super().__init__(text, parent)
         self.setStyleSheet(
-            "color: #F0C75E; font-size: 10px; font-weight: bold;"
-            "border: 1px solid #C9A227; border-radius: 8px; padding: 1px 7px;"
+            f"color: {GOLD_BRIGHT}; font-size: 10px; font-weight: bold;"
+            f"border: 1px solid {GOLD_DIM}; border-radius: 8px; padding: 1px 7px;"
             "background: rgba(212, 175, 55, 0.12);"
         )

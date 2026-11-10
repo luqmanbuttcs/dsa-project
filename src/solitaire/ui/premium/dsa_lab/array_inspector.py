@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 
 from solitaire.domain.card import Suit
 from solitaire.domain.operations import StructureName
+from solitaire.ui.premium.components.common.controls import strip_scroll
 from solitaire.ui.premium.dsa_lab.data_provider import array_report, operation_counts
 from solitaire.ui.premium.dsa_lab.widgets import (
     LiveBadge,
@@ -30,6 +31,7 @@ from solitaire.ui.premium.dsa_lab.widgets import (
     clear_layout,
     card_text,
 )
+from solitaire.ui.premium.theme import GOLD_TEXT
 
 LIFECYCLE_STEPS = [
     ("CREATE_DECK", "Deck creation", "build_standard_deck() fills the list"),
@@ -85,17 +87,7 @@ class ArrayInspector(QWidget):
         deal_header.addWidget(self._deal_tag)
         deal_layout.addLayout(deal_header)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMaximumHeight(84)
-        scroll.setStyleSheet("background: transparent; border: none;")
-        strip_holder = QWidget()
-        self._deal_strip = QHBoxLayout(strip_holder)
-        self._deal_strip.setContentsMargins(0, 0, 0, 0)
-        self._deal_strip.setSpacing(3)
-        scroll.setWidget(strip_holder)
+        scroll, self._deal_strip = strip_scroll(max_height=84)
         deal_layout.addWidget(scroll)
         layout.addWidget(deal_frame, 1)
 
@@ -117,17 +109,7 @@ class ArrayInspector(QWidget):
         self._remaining_caption.setObjectName("mutedText")
         remaining_layout.addWidget(self._remaining_caption)
 
-        remaining_scroll = QScrollArea()
-        remaining_scroll.setWidgetResizable(True)
-        remaining_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        remaining_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        remaining_scroll.setMaximumHeight(84)
-        remaining_scroll.setStyleSheet("background: transparent; border: none;")
-        remaining_holder = QWidget()
-        self._remaining_strip = QHBoxLayout(remaining_holder)
-        self._remaining_strip.setContentsMargins(0, 0, 0, 0)
-        self._remaining_strip.setSpacing(3)
-        remaining_scroll.setWidget(remaining_holder)
+        remaining_scroll, self._remaining_strip = strip_scroll(max_height=84)
         remaining_layout.addWidget(remaining_scroll)
 
         suits_row = QHBoxLayout()
@@ -189,7 +171,9 @@ class ArrayInspector(QWidget):
 
             head = QHBoxLayout()
             name_label = QLabel(title)
-            name_label.setStyleSheet("color: #E8C766; font-weight: bold; font-size: 13px;")
+            name_label.setStyleSheet(
+                f"color: {GOLD_TEXT}; font-weight: bold; font-size: 13px;"
+            )
             head.addWidget(name_label)
             head.addStretch(1)
             count_badge = QLabel(str(values.get(operation, 0)))

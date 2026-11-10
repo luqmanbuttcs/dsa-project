@@ -1,12 +1,27 @@
-"""Game Stats page: real statistics from the live GameState."""
+"""Game Stats page: real statistics from the live GameState.
+
+Presented in the same MetricCard language as the Overview page — icon,
+muted caption, prominent value — so both lab pages read as one system.
+"""
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
 
 from solitaire.ui.premium.dsa_lab.data_provider import game_stats
-from solitaire.ui.premium.dsa_lab.widgets import LiveBadge, SectionTitle
+from solitaire.ui.premium.dsa_lab.widgets import LiveBadge, MetricCard, SectionTitle
+
+STAT_CARDS = [
+    ("Moves", "moves"),
+    ("Score", "trophy"),
+    ("Time", "stopwatch"),
+    ("Draw mode", "list"),
+    ("Stock", "queue"),
+    ("Waste", "stack"),
+    ("Tableau", "linkedlist"),
+    ("Foundations", "crown"),
+    ("Status", "check"),
+]
 
 
 class GameStatsPage(QWidget):
@@ -27,32 +42,10 @@ class GameStatsPage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(10)
         self._value_labels: dict[str, QLabel] = {}
-        for index, key in enumerate(
-            [
-                "Moves",
-                "Score",
-                "Time",
-                "Draw mode",
-                "Stock",
-                "Waste",
-                "Tableau",
-                "Foundations",
-                "Status",
-            ]
-        ):
-            frame = QFrame()
-            frame.setObjectName("panelCard")
-            frame_layout = QVBoxLayout(frame)
-            frame_layout.setContentsMargins(12, 10, 12, 10)
-            title = QLabel(key)
-            title.setObjectName("panelTitle")
-            value = QLabel("—")
-            value.setStyleSheet("color: #F2EEE2; font-size: 15px; font-weight: bold; background: transparent;")
-            value.setWordWrap(True)
-            frame_layout.addWidget(title)
-            frame_layout.addWidget(value)
-            self._value_labels[key] = value
-            grid.addWidget(frame, index // 3, index % 3)
+        for index, (key, icon_name) in enumerate(STAT_CARDS):
+            card = MetricCard(key, icon_name)
+            self._value_labels[key] = card.value_label
+            grid.addWidget(card, index // 3, index % 3)
         layout.addLayout(grid)
 
         progress_title = QLabel("Foundation progress")

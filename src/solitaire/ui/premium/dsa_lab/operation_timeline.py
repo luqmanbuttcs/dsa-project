@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QTableWidgetItem, QVBoxLayout, QWidget
 
+from solitaire.ui.premium.components.common.controls import FilterLabel, make_table
 from solitaire.ui.premium.dsa_lab.data_provider import (
     distinct_operations,
     structure_counts,
@@ -39,7 +40,7 @@ class OperationTimeline(QWidget):
         layout.addLayout(header)
 
         filter_row = QHBoxLayout()
-        filter_row.addWidget(QLabel("Structure:"))
+        filter_row.addWidget(FilterLabel("Structure:"))
         self._structure_filter = QComboBox()
         self._structure_filter.addItem("All", "All")
         for label in structure_counts(self._game.tracker):
@@ -47,7 +48,7 @@ class OperationTimeline(QWidget):
         self._structure_filter.currentIndexChanged.connect(lambda _index: self.refresh())
         filter_row.addWidget(self._structure_filter)
 
-        filter_row.addWidget(QLabel("Operation:"))
+        filter_row.addWidget(FilterLabel("Operation:"))
         self._operation_filter = QComboBox()
         self._operation_filter.addItem("All", "All")
         self._operation_filter.currentIndexChanged.connect(lambda _index: self.refresh())
@@ -55,11 +56,10 @@ class OperationTimeline(QWidget):
         filter_row.addStretch(1)
         layout.addLayout(filter_row)
 
-        self._table = QTableWidget(0, len(COLUMNS))
-        self._table.setHorizontalHeaderLabels(COLUMNS)
-        self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.verticalHeader().setVisible(False)
-        self._table.setAlternatingRowColors(True)
+        self._table = make_table(list(COLUMNS))
+        # Default row heights on purpose: the real tracker log grows into the
+        # hundreds of rows during a session, and per-row ResizeToContents
+        # re-measurement on every setItem() would stall the refresh.
         layout.addWidget(self._table, 1)
 
         self._summary = QLabel("0 events")

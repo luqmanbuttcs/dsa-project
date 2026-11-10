@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from solitaire.ui.premium.components.common.controls import FilterLabel, make_table
 from solitaire.ui.premium.dsa_lab.data_provider import (
     dictionary_operation_counts,
     dictionary_rows,
@@ -52,12 +53,12 @@ class DictionaryInspector(QWidget):
         layout.addLayout(counts_row)
 
         filter_row = QHBoxLayout()
-        filter_row.addWidget(QLabel("Search:"))
+        filter_row.addWidget(FilterLabel("Search:"))
         self._search = QLineEdit()
         self._search.setPlaceholderText("Card ID, e.g. H-A or 8♥")
         self._search.textChanged.connect(lambda _text: self.refresh())
         filter_row.addWidget(self._search, 1)
-        filter_row.addWidget(QLabel("Zone:"))
+        filter_row.addWidget(FilterLabel("Zone:"))
         self._zone_filter = QComboBox()
         self._zone_filter.addItem("All zones", None)
         for zone_value, zone_label in ZONE_LABELS.items():
@@ -66,13 +67,9 @@ class DictionaryInspector(QWidget):
         filter_row.addWidget(self._zone_filter)
         layout.addLayout(filter_row)
 
-        self._table = QTableWidget(0, 5)
-        self._table.setHorizontalHeaderLabels(
+        self._table = make_table(
             ["Card ID", "Zone", "Pile", "Position", "Face state"]
         )
-        self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.verticalHeader().setVisible(False)
-        self._table.setAlternatingRowColors(True)
         layout.addWidget(self._table, 1)
 
     def refresh(self) -> None:

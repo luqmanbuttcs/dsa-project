@@ -37,6 +37,13 @@ OK_GREEN_DEEP = "#0F3D22"
 WARN_RED = "#E05555"
 WARN_RED_DEEP = "#3D1414"
 
+# Electric mint / controlled cyan — the arcade half of the identity. Same
+# values the card graphics use for selection glow (SELECT_MINT), so the 2D
+# board and the widget chrome share one accent system.
+MINT = "#40E0B2"
+CYAN = "#56C8EA"
+EMERALD_SOFT = "#7FB5A3"
+
 TEXT_PRIMARY = "#F2EEE2"
 TEXT_MUTED = "#9FB0C6"
 TEXT_GOLD = "#E8C766"
@@ -263,6 +270,11 @@ QLabel#panelTitle {{
     background: transparent;
 }}
 
+QWidget#dashboardFooter {{
+    background: {NAVY_DEEP};
+    border-top: 1px solid {NAVY_BORDER};
+}}
+
 QLabel#panelBody {{
     color: {TEXT_PRIMARY};
     font-size: 13px;
@@ -333,8 +345,13 @@ QComboBox QAbstractItemView {{
     selection-background-color: {GOLD_DIM};
 }}
 
+/* DSA Lab navigation tabs — inactive tabs sit on dark navy with a
+   restrained mint/cyan accent; the active tab carries the same premium
+   gold gradient as the header's gold buttons so the two workspaces read
+   as one application. */
 QPushButton#labTab {{
-    background: {NAVY_CHIP};
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {NAVY_LIGHT}, stop:1 {NAVY_CHIP});
     color: {TEXT_MUTED};
     font-weight: bold;
     font-size: 13px;
@@ -342,8 +359,54 @@ QPushButton#labTab {{
     border-radius: 10px;
     padding: 7px 16px;
 }}
-QPushButton#labTab:checked {{ background: {GOLD_DIM}; color: #FFF7E0; border-color: {GOLD}; }}
-QPushButton#labTab:hover {{ color: {GOLD_BRIGHT}; }}
+QPushButton#labTab:hover {{
+    color: {CYAN};
+    border: 1px solid rgba(64, 224, 178, 0.45);
+}}
+QPushButton#labTab:checked {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {GOLD_BRIGHT}, stop:1 {GOLD});
+    color: #241A02;
+    border: 1.4px solid {GOLD_BRIGHT};
+}}
+QPushButton#labTab:checked:hover {{ color: #241A02; }}
+
+/* Shared filter-row labels (DSA Lab tables, Game Mode). */
+QLabel#filterLabel {{
+    color: {TEXT_MUTED};
+    font-size: 12px;
+    font-weight: bold;
+    background: transparent;
+}}
+
+/* Inline key/value stat text used across the DSA Lab. */
+QLabel#statChip {{
+    color: {TEXT_PRIMARY};
+    font-size: 13px;
+    background: transparent;
+}}
+
+QLabel#sectionTitle {{
+    color: {GOLD_TEXT};
+    font-size: 15px;
+    font-weight: bold;
+    background: transparent;
+}}
+
+/* The pinned sidebar footer button: same gold language, slightly larger
+   so the Open DSA Lab action reads as the sidebar's primary affordance. */
+QPushButton#openLabButton {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {GOLD_BRIGHT}, stop:1 {GOLD});
+    color: #241A02;
+    font-weight: bold;
+    font-size: 14px;
+    border: 1px solid {GOLD_DEEP};
+    border-radius: 19px;
+    padding: 9px 20px;
+}}
+QPushButton#openLabButton:hover {{ background: {GOLD_BRIGHT}; }}
+QPushButton#openLabButton:pressed {{ background: {GOLD_DIM}; }}
 
 QProgressBar#gameProgress {{
     background: {NAVY_CHIP};
