@@ -32,22 +32,27 @@ class ModeCard(QPushButton):
         self.setObjectName("modeCard")
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(128)
+        # QPushButton's style-driven size hints ignore the child layout, so
+        # without an explicit floor the cards collapsed to ~18px strips and
+        # clipped their own icon/title/subtitle. 108px matches the natural
+        # content height (icon + title + two wrapped subtitle lines) with the
+        # trimmed margins below.
+        self.setMinimumHeight(108)
         self.setIconSize(self.iconSize())
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(6)
+        layout.setContentsMargins(16, 10, 16, 10)
+        layout.setSpacing(4)
 
         icon_label = QLabel()
         icon_label.setPixmap(icon_pixmap(icon_name, 30))
-        icon_label.setFixedSize(34, 34)
+        icon_label.setFixedSize(30, 30)
         icon_label.setScaledContents(True)
         layout.addWidget(icon_label)
 
         title_label = QLabel(title)
         title_label.setStyleSheet(
-            "color: #E8C766; font-weight: bold; font-size: 18px; background: transparent;"
+            "color: #E8C766; font-weight: bold; font-size: 17px; background: transparent;"
         )
         layout.addWidget(title_label)
 
@@ -140,10 +145,28 @@ class GameModePage(QWidget):
         top_layout.addStretch(1)
         layout.addWidget(top_bar)
 
+        # --- scrollable body -----------------------------------------------------
+        # The settings column's natural height exceeds the space below the
+        # navigation header on short windows (1280x720 / 1366x768) and even
+        # at the 1600x900 design size it used to overflow by ~60px, so Qt
+        # crushed the rows: toggle captions vanished, the Animation Speed
+        # title collapsed to a 3px sliver and the shortcut badges clipped.
+        # A widget-resizable scroll area guarantees every row keeps its full
+        # size hint and stays reachable; at the design and maximized sizes
+        # the trimmed spacing lets everything fit with no scrollbar at all.
+        from PyQt6.QtWidgets import QScrollArea
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._scroll.setObjectName("settingsScroll")
+        layout.addWidget(self._scroll, 1)
+
         body_holder = QWidget()
         body = QVBoxLayout(body_holder)
-        body.setContentsMargins(24, 20, 24, 20)
-        body.setSpacing(16)
+        body.setContentsMargins(24, 14, 24, 14)
+        body.setSpacing(12)
 
         heading = QLabel("Choose how the Stock deals")
         heading.setStyleSheet(
@@ -183,8 +206,8 @@ class GameModePage(QWidget):
         motion_frame = QFrame()
         motion_frame.setObjectName("panelCard")
         motion_layout = QVBoxLayout(motion_frame)
-        motion_layout.setContentsMargins(16, 14, 16, 14)
-        motion_layout.setSpacing(12)
+        motion_layout.setContentsMargins(16, 12, 16, 12)
+        motion_layout.setSpacing(9)
 
         self._reduce_motion = ToggleRow(
             "Reduce motion",
@@ -243,8 +266,8 @@ class GameModePage(QWidget):
         controls_frame = QFrame()
         controls_frame.setObjectName("panelCard")
         controls_layout = QVBoxLayout(controls_frame)
-        controls_layout.setContentsMargins(16, 14, 16, 14)
-        controls_layout.setSpacing(10)
+        controls_layout.setContentsMargins(16, 12, 16, 12)
+        controls_layout.setSpacing(6)
 
         controls_title = QLabel("Controls & shortcuts")
         controls_title.setStyleSheet(
@@ -266,9 +289,12 @@ class GameModePage(QWidget):
             key_chip = QLabel(key)
             key_chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
             key_chip.setFixedWidth(110)
+            # A minimum (not fixed) height plus word-wrapping keeps the whole
+            # badge text visible even when the window is very short.
+            key_chip.setMinimumHeight(22)
             key_chip.setStyleSheet(
                 "color: #F0C75E; font-weight: bold; font-size: 12px;"
-                "border: 1px solid #C9A227; border-radius: 6px; padding: 3px 8px;"
+                "border: 1px solid #C9A227; border-radius: 6px; padding: 2px 8px;"
                 "background: rgba(212, 175, 55, 0.10);"
             )
             action_label = QLabel(action)
@@ -279,21 +305,25 @@ class GameModePage(QWidget):
         body.addWidget(controls_frame)
 
         body.addStretch(1)
+        self._scroll.setWidget(body_holder)
 
-        # --- actions ------------------------------------------------------------
-        actions = QHBoxLayout()
+        # --- fixed actions footer -------------------------------------------------
+        # Outside the scroll area so "Deal a New Game" stays one click away
+        # no matter how far the settings above are scrolled.
+        footer = QWidget()
+        footer.setObjectName("settingsFooter")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(24, 8, 24, 12)
         new_game_button = QPushButton("  Deal a New Game")
         new_game_button.setObjectName("goldButton")
         from PyQt6.QtGui import QIcon
 
         new_game_button.setIcon(QIcon(icon_pixmap("spade", 18)))
-        new_game_button.setMinimumHeight(44)
+        new_game_button.setMinimumHeight(42)
         new_game_button.clicked.connect(on_new_game)
-        actions.addWidget(new_game_button)
-        actions.addStretch(1)
-        body.addLayout(actions)
-
-        layout.addWidget(body_holder, 1)
+        footer_layout.addWidget(new_game_button)
+        footer_layout.addStretch(1)
+        layout.addWidget(footer)
 
     # --- results ----------------------------------------------------------------
     @property

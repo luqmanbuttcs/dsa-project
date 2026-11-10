@@ -27,6 +27,9 @@ python -m solitaire.main  # premium shell
 - [ ] Fresh deal renders: stock + waste top-left, four foundations with gold frames, seven tableau columns, Move Log and feedback panel beneath the board, dashboard on the right.
 - [ ] Header metric chips show Time `00:00`, Moves `0`, Score `0` before any action.
 - [ ] Resize to ~1600×900 (design size) and to 1280×800 (minimum): the header switches to its compact mode, and no button, label, card rank, suit, or dashboard text is clipped or overlapping.
+- [ ] **Responsive regression (final UI fix):** on a short screen (1280×720 logical — e.g. 1920×1080 at 150% scaling, or 1366×768) the whole window fits the work area: Game Progress and the pinned **Open DSA Lab** button are visible (the dashboard scrolls internally if needed) and nothing sits permanently below the taskbar.
+- [ ] **Settings regression (final UI fix):** in Settings at any window size no label/description is clipped, all six shortcut badges show their full text, the Animation Speed row (slider + value) is complete, and **Deal a New Game** is reachable in the footer without scrolling; at 1600×900 and maximized the page fits with no scrollbar.
+- [ ] **Resize-transition regression:** maximize → restore → manually resize → minimize → restore → maximize: the board refits every time, no card lands outside the felt, and no control disappears or stays at stale coordinates.
 - [ ] Toggle the dashboard off and on from **Game Mode** (settings gear → switches): the felt regains the released width and the dashboard returns unchanged.
 - [ ] Open **Settings → Game Mode**: Draw 1 / Draw 3 mode cards, Reduce-motion switch, dashboard switch, and animation-speed slider are all present and labeled.
 - [ ] Return to the play workspace via **Return to Play Workspace**; the board state is unchanged by visiting settings.
@@ -70,6 +73,7 @@ python -m solitaire.main  # premium shell
 ## 6. Animations, motion, close and repeat
 
 - [ ] Card travel animates from the source to the committed destination (reduce-motion off); flips animate.
+- [ ] **Animation speed regression (final UI fix):** with the slider at **2.0×** card moves, flips and the deal are visibly FASTER than at 1.0× (2.0× halves durations — the old build multiplied and slowed everything down). At 0.5× everything is roughly twice as slow. The deal has no long pauses between cards at any speed.
 - [ ] Reduce-motion on: moves apply instantly with the same feedback and DSA trace; animation-speed slider has a visible effect when reduce-motion is off.
 - [ ] Close the window while idle and mid-animation: both exit cleanly with no console traceback.
 - [ ] Relaunch: fresh deal, zero score/time, no leftovers from the previous session.

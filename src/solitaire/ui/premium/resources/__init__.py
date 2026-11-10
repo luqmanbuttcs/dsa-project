@@ -85,14 +85,22 @@ def back_renderer() -> QSvgRenderer:
 # Renderers live for the whole process: a plain module-level dict keeps
 # strong references forever (unlike lru_cache, which participates in cyclic
 # GC timing), and they are parented to the QApplication when one exists so
-# Qt owns their lifetime too.
+# Qt owns their lifetime too. Parenting to the app also means a QApplication
+# teardown (test modules recreate one between suites) deletes every cached
+# renderer — so the cache detects that and rebuilds instead of returning a
+# dead wrapper that would crash the next paint with RuntimeError.
 _RENDERERS: dict[str, QSvgRenderer] = {}
 
 
 def _cached_renderer(file_name: str) -> QSvgRenderer:
+    from PyQt6 import sip
+
     renderer = _RENDERERS.get(file_name)
     if renderer is not None:
-        return renderer
+        if not sip.isdeleted(renderer):
+            return renderer
+        # The QApplication that owned it is gone; drop and rebuild.
+        del _RENDERERS[file_name]
     renderer = QSvgRenderer(str(get_art_path(file_name)))
     if not renderer.isValid():
         raise ValueError(f"invalid SVG asset: {file_name}")

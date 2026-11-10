@@ -41,29 +41,9 @@ from solitaire.ui.premium.theme import (
 
 SEED = 1  # deals a deterministic board with a tableau hint (H-2, tableau-5 -> tableau-4)
 
-
-@pytest.fixture(scope="module")
-def app():
-    application = QApplication.instance() or QApplication([])
-    yield application
-
-
-@pytest.fixture()
-def window(app):
-    built = PremiumMainWindow(seed=SEED)
-    built.show()
-    app.processEvents()
-    yield built
-    # Deterministic teardown: halt animations while items are alive, then
-    # delete the C++ tree on the spot instead of leaving it to cyclic GC
-    # during a later test (this aborted CI with exit code 134).
-    import gc
-
-    built.close()
-    built.deleteLater()
-    app.processEvents()
-    gc.collect()
-
+# The app/window fixtures live in tests/ui/conftest.py so the responsive
+# layout regressions (test_responsive_layout.py) share the exact same
+# deterministic construction and teardown.
 
 # --- shell & layout ---------------------------------------------------------------------
 
@@ -657,16 +637,26 @@ def test_drag_lift_timeline_sweeps_zero_to_one_deterministically(app, window):
     """
     from PyQt6.QtCore import QAbstractAnimation
 
+    from solitaire.ui.premium.animations.card_animation_manager import (
+        CardAnimationManager,
+    )
+
     scene = window.play_workspace.scene
     scene.settle_all()  # quiesce deal choreography before touching the item
     app.processEvents()
     item = next(it for it in scene.card_items.values() if it.card.face_up)
 
+    # Pin the speed singleton: the lift duration contract is a 1.0x baseline,
+    # and the manager restores the host's persisted Game Mode preference.
+    manager = CardAnimationManager.instance()
+    original_speed = manager.speed_multiplier
+    manager.speed_multiplier = 1.0
+
     item.begin_drag_session()
     try:
         animation = item._property_animations.get("drag_lift")
         assert animation is not None, "begin_drag_session must start the lift timeline"
-        assert animation.duration() == 140, "the lift keeps its 140ms duration"
+        assert animation.duration() == 140, "the lift keeps its 140ms duration at 1.0x"
         assert animation.state() == QAbstractAnimation.State.Running
         # Drive the clock instead of waiting on it: deterministic everywhere.
         animation.setCurrentTime(0)
@@ -679,6 +669,7 @@ def test_drag_lift_timeline_sweeps_zero_to_one_deterministically(app, window):
         assert animation.state() == QAbstractAnimation.State.Stopped
     finally:
         item.end_drag_session()
+        manager.speed_multiplier = original_speed
         scene.settle_all()
     assert _wait_for_drag_lift(app, item, target=0.01, at_most=True)
 
@@ -692,25 +683,40 @@ def test_rapid_lift_unlift_keeps_one_animation_writer(app, window):
     from PyQt6.QtCore import QAbstractAnimation
     from PyQt6.QtTest import QTest
 
+    from solitaire.ui.premium.animations.card_animation_manager import (
+        CardAnimationManager,
+    )
+
     scene = window.play_workspace.scene
     scene.settle_all()
     app.processEvents()
     item = next(it for it in scene.card_items.values() if it.card.face_up)
 
-    item.begin_drag_session()
-    lift = item._property_animations.get("drag_lift")
-    assert lift is not None
-    QTest.qWait(70)  # real ticks advance the lift part-way (first tick ~30ms)
-    item.end_drag_session()
+    # The one-writer contract is speed-independent, but the 140ms scrub
+    # below assumes the 1.0x baseline — pin the singleton (it restores the
+    # host's persisted Game Mode preference otherwise).
+    manager = CardAnimationManager.instance()
+    original_speed = manager.speed_multiplier
+    manager.speed_multiplier = 1.0
 
-    unlift = item._property_animations.get("drag_lift")
-    assert unlift is not None and unlift is not lift
-    assert lift.state() == QAbstractAnimation.State.Stopped, (
-        "the superseded lift animation must be retired, not left running"
-    )
-    # Drive the unlift to its end: the card must end exactly at rest.
-    unlift.setCurrentTime(140)
-    assert item.get_drag_lift() == pytest.approx(0.0, abs=1e-9)
+    try:
+        item.begin_drag_session()
+        lift = item._property_animations.get("drag_lift")
+        assert lift is not None
+        QTest.qWait(70)  # real ticks advance the lift part-way (first tick ~30ms)
+        item.end_drag_session()
+
+        unlift = item._property_animations.get("drag_lift")
+        assert unlift is not None and unlift is not lift
+        assert lift.state() == QAbstractAnimation.State.Stopped, (
+            "the superseded lift animation must be retired, not left running"
+        )
+        # Drive the unlift to its end: the card must end exactly at rest.
+        unlift.setCurrentTime(unlift.duration())
+        assert item.get_drag_lift() == pytest.approx(0.0, abs=1e-9)
+    finally:
+        manager.speed_multiplier = original_speed
+        scene.settle_all()
 
 
 def test_manual_drag_to_legal_target_executes_the_move(app, window):
@@ -897,8 +903,8 @@ def test_invalid_drop_shake_survives_then_flies_home(app, window):
 
     # Pin the animation speed: the manager is an application singleton that
     # restores the user's Game Mode preference from QSettings, so the shake
-    # duration (150ms × 2 × speed) must not depend on the host machine's
-    # persisted settings.
+    # duration (ANIMATION_MS["invalid"] * 2 at the 1.0x baseline) must not
+    # depend on the host machine's persisted settings.
     manager = CardAnimationManager.instance()
     original_speed = manager.speed_multiplier
     manager.speed_multiplier = 1.0

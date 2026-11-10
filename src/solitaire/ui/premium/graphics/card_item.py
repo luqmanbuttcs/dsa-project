@@ -202,6 +202,21 @@ class CardGraphicsItem(QGraphicsObject):
     pop_scale = pyqtProperty(float, get_pop_scale, set_pop_scale)
 
     # --- small self-owned animations (destroyed with the item) --------------
+    @staticmethod
+    def _scaled_ms(ms: int) -> int:
+        """Follow the user's animation-speed multiplier like the manager.
+
+        The lift/hover/tilt/error timelines are owned by the item itself, so
+        they must apply the same speed semantics as CardAnimationManager
+        (divide by the multiplier) or the Settings control would leave these
+        motions at raw speed while everything else speeds up.
+        """
+        from solitaire.ui.premium.animations.card_animation_manager import (
+            CardAnimationManager,
+        )
+
+        return CardAnimationManager.instance().duration_for(ms)
+
     def _animate_property(self, name: str, target: float, ms: int) -> None:
         """Animate one of this item's own float properties.
 
@@ -228,7 +243,7 @@ class CardGraphicsItem(QGraphicsObject):
                 pass  # already destroyed with a dying C++ object
         try:
             animation = QPropertyAnimation(self, name.encode(), self)
-            animation.setDuration(ms)
+            animation.setDuration(self._scaled_ms(ms))
             animation.setStartValue(getattr(self, f"get_{name}")())
             animation.setEndValue(target)
             animation.setEasingCurve(QEasingCurve.Type.OutCubic)

@@ -345,7 +345,8 @@ class GameBoardScene(QGraphicsScene):
             if bounce:
                 self._pending_bounce.discard(card_id)
             # Draw-3 stagger: cards that just left the Stock land on the
-            # Waste fan left-to-right with small delays.
+            # Waste fan left-to-right with small delays (scaled by the
+            # animation speed like every other cosmetic duration).
             delay_ms = 0
             if (
                 draw_fan_index >= 0
@@ -353,7 +354,7 @@ class GameBoardScene(QGraphicsScene):
                 and old is not None
                 and (old - stock_pos).manhattanLength() < 16.0
             ):
-                delay_ms = draw_fan_index * 60
+                delay_ms = draw_fan_index * self._animation.duration_for(60)
             if old is None:
                 item.setPos(target)
             elif moved and animate and self._animation is not None:
@@ -760,8 +761,11 @@ class GameBoardScene(QGraphicsScene):
         if not order:
             return
         stock_pos = self._slots["stock"]
-        stagger = 36
-        travel = int(ANIMATION_MS["move"] * self._animation.speed_multiplier)
+        # Stagger and travel both follow the animation speed: 2.0x deals
+        # twice as fast (half the gap, half the flight), so the whole
+        # choreography halves instead of keeping long pauses between cards.
+        stagger = self._animation.duration_for(36)
+        travel = self._animation.duration_for(ANIMATION_MS["move"])
         for index, (item, z_value, face_up) in enumerate(order):
             target = item.pos()
             delay = index * stagger

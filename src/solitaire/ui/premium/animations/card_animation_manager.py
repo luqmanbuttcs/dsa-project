@@ -42,10 +42,23 @@ class CardAnimationManager:
         return cls._instance
 
     # --- helpers -----------------------------------------------------------
-    def _duration(self, base_ms: int) -> int:
+    def duration_for(self, base_ms: int) -> int:
+        """Scaled duration for *base_ms* at the user's animation speed.
+
+        The multiplier is a **speed** multiplier, matching the Settings
+        label ("Animation speed 2.0x"): 2.0x means the same motion plays
+        twice as fast, i.e. the duration is *divided* by the multiplier.
+        The historical implementation multiplied instead, so raising the
+        slider made the game feel progressively slower — the exact opposite
+        of what the control promises.
+        """
         if self.reduce_motion:
             return 0
-        return int(base_ms * self.speed_multiplier)
+        multiplier = max(float(self.speed_multiplier), 0.1)
+        return max(1, int(round(base_ms / multiplier)))
+
+    def _duration(self, base_ms: int) -> int:
+        return self.duration_for(base_ms)
 
     def _prune(self) -> None:
         """Drop animations that finished naturally or lost their target.
@@ -54,20 +67,47 @@ class CardAnimationManager:
         animation<->manager reference cycles while every closure cell is
         still intact, so cyclic GC can never invoke a destroyed-signal
         handler with cleared cells (the CI exit-134 / NameError family).
+        Retired timelines are deleteLater()'d: they are QObject children of
+        the shared parent, so dropping only the Python reference would let
+        the C++ objects accumulate for the whole session.
         """
         from PyQt6.QtCore import QAbstractAnimation
 
-        self._active = [
-            animation
-            for animation in self._active
-            if animation.state() == QAbstractAnimation.State.Running
-            or animation in self._pending
-        ]
-        self._groups = [
-            group
-            for group in self._groups
-            if group.state() == QAbstractAnimation.State.Running
-        ]
+        keep: list[QPropertyAnimation] = []
+        for animation in self._active:
+            if (
+                animation.state() == QAbstractAnimation.State.Running
+                or animation in self._pending
+            ):
+                keep.append(animation)
+            else:
+                animation.deleteLater()
+        self._active = keep
+        still: list[QParallelAnimationGroup] = []
+        for group in self._groups:
+            if group.state() == QAbstractAnimation.State.Running:
+                still.append(group)
+            else:
+                group.deleteLater()
+        self._groups = still
+
+    def _track(self, animation) -> None:
+        """Register a one-shot animation and retire it when it finishes.
+
+        Retiring on ``finished`` (instead of only at the next ``_prune()``)
+        means completed timelines never accumulate — neither as Python
+        references nor as C++ children of the shared parent — while gameplay
+        keeps starting new animations at full speed.
+        """
+        self._active.append(animation)
+        animation.finished.connect(lambda anim=animation: self._retire(anim))
+
+    def _retire(self, animation) -> None:
+        """Forget a finished/stopped animation and release its C++ object."""
+        self._pending.discard(animation)
+        if animation in self._active:
+            self._active.remove(animation)
+        animation.deleteLater()
 
     # --- movement ------------------------------------------------------------
     def animate_move(
@@ -98,7 +138,7 @@ class CardAnimationManager:
         animation.finished.connect(
             lambda: self._on_move_finished(item, to_pos, z_value, bounce)
         )
-        self._active.append(animation)
+        self._track(animation)
         self._watch_item(item)
         if delay_ms > 0:
             self._start_later(animation, delay_ms)
@@ -121,7 +161,7 @@ class CardAnimationManager:
                 try:
                     animation.start()
                 except RuntimeError:
-                    pass
+                    pass  # retired before its delay elapsed; nothing to start
 
         QTimer.singleShot(delay_ms, _fire)
 
@@ -137,10 +177,11 @@ class CardAnimationManager:
         for item, _target in items_with_targets:
             self.interrupt_for(item)
         group = QParallelAnimationGroup(self._parent)
+        stagger_step = self.duration_for(12)
         for index, (item, target) in enumerate(items_with_targets):
             item.setZValue(z_value + 100.0 + index)
             animation = QPropertyAnimation(item, b"pos", group)
-            animation.setDuration(duration + index * 12)
+            animation.setDuration(duration + index * stagger_step)
             animation.setStartValue(item.pos())
             animation.setEndValue(target)
             animation.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -149,7 +190,7 @@ class CardAnimationManager:
             )
             group.addAnimation(animation)
         self._groups.append(group)
-        group.finished.connect(lambda: self._forget_group(group))
+        group.finished.connect(lambda: self._retire_group(group))
         for item, _target in items_with_targets:
             self._watch_item(item)
         group.start()
@@ -173,7 +214,7 @@ class CardAnimationManager:
         item.setZValue(z_value)
 
     # --- settle pop -----------------------------------------------------------
-    def settle_pop(self, item: QGraphicsObject, base_ms: int = 190) -> None:
+    def settle_pop(self, item: QGraphicsObject, base_ms: int = 130) -> None:
         """Tiny spring scale when a card lands — the 'placed' feel."""
         if self.reduce_motion:
             return
@@ -188,7 +229,7 @@ class CardAnimationManager:
             animation.setKeyValueAt(0.45, 1.0)
             animation.setKeyValueAt(1.0, 0.0)
             animation.setEasingCurve(QEasingCurve.Type.OutQuad)
-            self._active.append(animation)
+            self._track(animation)
             self._watch_item(item)
             animation.start()
         except RuntimeError:
@@ -208,7 +249,7 @@ class CardAnimationManager:
         animation.setStartValue(item.get_flip())
         animation.setEndValue(target)
         animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        self._active.append(animation)
+        self._track(animation)
         animation.start()
 
     # --- pulses / glows ----------------------------------------------------------
@@ -224,7 +265,7 @@ class CardAnimationManager:
         animation.setDuration(duration)
         animation.setStartValue(getattr(item, f"get_{name}")())
         animation.setEndValue(target)
-        self._active.append(animation)
+        self._track(animation)
         animation.start()
 
     def pulse_hint(self, item: QGraphicsObject) -> None:
@@ -242,22 +283,22 @@ class CardAnimationManager:
             QTimer.singleShot(900, _fade_back)
             return
         animation = QPropertyAnimation(item, b"hint", self._parent)
-        animation.setDuration(max(160, duration) * 2)
+        animation.setDuration(max(120, duration) * 2)
         animation.setKeyValueAt(0.0, 0.0)
         animation.setKeyValueAt(0.5, 1.0)
         animation.setKeyValueAt(1.0, 0.0)
-        self._active.append(animation)
+        self._track(animation)
         animation.start()
 
     def pulse_property(self, item: QGraphicsObject, name: str) -> None:
         self._prune()
-        duration = max(200, self._duration(ANIMATION_MS["invalid"]))
+        duration = max(140, self._duration(ANIMATION_MS["invalid"]))
         animation = QPropertyAnimation(item, name.encode(), self._parent)
         animation.setDuration(duration * 2)
         animation.setKeyValueAt(0.0, getattr(item, f"get_{name}")())
         animation.setKeyValueAt(0.5, 1.0)
         animation.setKeyValueAt(1.0, 0.0)
-        self._active.append(animation)
+        self._track(animation)
         animation.start()
 
     def invalid_shake(self, item: QGraphicsObject) -> QPropertyAnimation | None:
@@ -282,7 +323,7 @@ class CardAnimationManager:
         animation.setKeyValueAt(0.75, origin)
         animation.setKeyValueAt(1.0, origin)
         animation.finished.connect(lambda: item.setPos(origin))
-        self._active.append(animation)
+        self._track(animation)
         animation.start()
         return animation
 
@@ -329,31 +370,39 @@ class CardAnimationManager:
                     break
             if not dead_child:
                 still_alive_groups.append(group)
+            else:
+                group.deleteLater()
         self._groups = still_alive_groups
 
     def interrupt_for(self, item: QGraphicsObject) -> None:
         for animation in list(self._active):
             if animation.targetObject() is item:
                 animation.stop()
-                if animation in self._active:
-                    self._active.remove(animation)
+                self._retire(animation)
         for group in list(self._groups):
             for index in range(group.animationCount()):
                 child = group.animationAt(index)
                 if child.targetObject() is item:
                     group.stop()
-                    if group in self._groups:
-                        self._groups.remove(group)
+                    self._retire_group(group)
                     break
 
     def interrupt_all(self) -> None:
         for animation in list(self._active):
             animation.stop()
+            self._retire(animation)
         for group in list(self._groups):
             group.stop()
+            self._retire_group(group)
         self._active.clear()
         self._groups.clear()
         self._pending.clear()
+
+    def _retire_group(self, group) -> None:
+        """Forget a finished/stopped group and release its C++ object."""
+        if group in self._groups:
+            self._groups.remove(group)
+        group.deleteLater()
 
     def _forget(self, animation) -> None:
         if animation in self._active:

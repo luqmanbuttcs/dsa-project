@@ -15,9 +15,18 @@ from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QGraphicsObject
 
 PARTICLE_COUNT = 14
-BURST_MS = 680
+BURST_MS = 560
 MAX_RADIUS = 96.0
-START_DELAY_MS = 130  # bloom after the landed card settles
+START_DELAY_MS = 110  # bloom after the landed card settles
+
+
+def _scaled(ms: int) -> int:
+    """Follow the user's animation speed (2.0x = twice the speed)."""
+    from solitaire.ui.premium.animations.card_animation_manager import (
+        CardAnimationManager,
+    )
+
+    return CardAnimationManager.instance().duration_for(ms)
 
 GOLD = QColor(240, 199, 94)
 GOLD_BRIGHT = QColor(255, 236, 170)
@@ -41,7 +50,7 @@ class ParticleBurstItem(QGraphicsObject):
             self._particles.append((angle, speed, rng.uniform(1.6, 3.1), color))
         self.setZValue(500.0)
         self._animation = QVariantAnimation(self)
-        self._animation.setDuration(BURST_MS)
+        self._animation.setDuration(_scaled(BURST_MS))
         self._animation.setStartValue(0.0)
         self._animation.setEndValue(1.0)
         self._animation.valueChanged.connect(self._on_progress)
@@ -52,7 +61,7 @@ class ParticleBurstItem(QGraphicsObject):
 
         # A short beat after landing: the burst blooms around the settled
         # card where gold-on-felt reads clearly (never buried on ivory).
-        QTimer.singleShot(START_DELAY_MS, self._begin)
+        QTimer.singleShot(_scaled(START_DELAY_MS), self._begin)
 
     def _begin(self) -> None:
         try:

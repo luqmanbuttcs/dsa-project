@@ -28,7 +28,11 @@ from solitaire.ui.premium.theme import FONT_DISPLAY
 GOLD = "#F0C75E"
 GOLD_DEEP = "#C9A227"
 CONFETTI_MS_STEP = 33
-CONFETTI_LIFETIME_MS = 6200
+# Celebration stays satisfying but leaves promptly: motes settle in ~4.5s
+# (was 6.2s), shortened further by the animation-speed setting via the
+# manager. The timer is event-driven and dismissible at any moment, so the
+# effect never blocks gameplay.
+CONFETTI_LIFETIME_MS = 4500
 
 
 class _PanelFadeAnimation(QVariantAnimation):
@@ -37,7 +41,7 @@ class _PanelFadeAnimation(QVariantAnimation):
     def __init__(self, effect: QGraphicsOpacityEffect, parent: QWidget) -> None:
         super().__init__(parent)
         self._effect = effect
-        self.setDuration(320)
+        self.setDuration(_scaled(320))
         self.setStartValue(0.0)
         self.setEndValue(1.0)
         self.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -48,6 +52,15 @@ class _PanelFadeAnimation(QVariantAnimation):
             self._effect.setOpacity(float(value))
         except RuntimeError:
             pass
+
+
+def _scaled(ms: int) -> int:
+    """Follow the user's animation speed (2.0x = twice the speed)."""
+    from solitaire.ui.premium.animations.card_animation_manager import (
+        CardAnimationManager,
+    )
+
+    return CardAnimationManager.instance().duration_for(ms)
 
 
 class _Confetti:

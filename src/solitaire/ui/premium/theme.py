@@ -62,7 +62,12 @@ HEADER_HEIGHT = 84
 DASHBOARD_WIDTH = 410
 SPACING = 8
 MIN_WINDOW_W = 1280
-MIN_WINDOW_H = 800
+# 640 lets the whole window fit short desktops: 1280x720 logical (Windows 150%
+# DPI scaling on 1920x1080) leaves ~680px of work area under the taskbar, and
+# 1366x768 leaves ~728px. With the old 800px minimum the window manager placed
+# an 800px-tall window on a ~680px work area and the bottom 80px+ — Game
+# Progress and the pinned Open DSA Lab button — sat permanently off-screen.
+MIN_WINDOW_H = 640
 DESIGN_W = 1600
 DESIGN_H = 900
 
@@ -71,15 +76,20 @@ FAN_FACE_DOWN = 14
 FAN_FACE_UP = 30
 WASTE_FAN = 22
 
+# Base (1.0x) durations in milliseconds, tuned to the approved game-feel
+# targets: ordinary card movement 120-180, flip 120-170, drag/drop settle
+# 100-150, invalid feedback 160-220 total, deal per card 120-160 + short
+# stagger. The CardAnimationManager divides these by the user's animation
+# speed multiplier (2.0x = twice the speed = half the duration).
 ANIMATION_MS = {
-    "move": 220,
-    "multi_move": 260,
-    "flip": 200,
-    "stock_draw": 210,
-    "foundation": 240,
-    "trail": 300,
-    "invalid": 150,
-    "victory": 1200,
+    "move": 160,
+    "multi_move": 190,
+    "flip": 150,
+    "stock_draw": 150,
+    "foundation": 170,
+    "trail": 220,
+    "invalid": 105,
+    "victory": 900,
 }
 
 
