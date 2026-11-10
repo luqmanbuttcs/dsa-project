@@ -45,3 +45,27 @@ jobs:
         run: python -m pytest
       - name: Run interaction sweep
         run: python tools/interaction_sweep.py
+
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.7"
+          cache: pip
+
+      - name: Install project and development dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run unit tests
+        run: python -m pytest
+
+      - name: Run interaction sweep
+        run: python tools/interaction_sweep.py
