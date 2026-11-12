@@ -10,15 +10,268 @@ The default application is the premium casino-style interface. The game rules an
 
 ## Screenshots
 
-### Play workspace
+The repository contains **all 38 project screenshots** below. They are grouped and captioned so viewers can identify the feature, DSA inspector, interaction, or window size shown. Select an image to view its full-resolution version.
 
-![Premium Solitaire Play Workspace](docs/screenshots/ds_01_play_workspace_1600x900.png)
+### Current application screens
 
-### DSA Lab
+These images show the current Play workspace and the eight DSA Lab pages. Click any image to open the full-size file.
 
-![DSA Lab Overview](docs/screenshots/ds_02_lab_overview.png)
+<table>
+<tr>
+<td width="50%" valign="top">
+<strong>01 · Main Play Workspace (1600 × 900)</strong><br>
+<sub>The premium Solitaire board, header metrics, live DSA dashboard, Move Log, and feedback panel.</sub><br><br>
+<a href="docs/screenshots/ds_01_play_workspace_1600x900.png"><img src="docs/screenshots/ds_01_play_workspace_1600x900.png" alt="01 · Main Play Workspace (1600 × 900)" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>02 · DSA Lab Overview</strong><br>
+<sub>Overview of the five required data structures with live game-session information.</sub><br><br>
+<a href="docs/screenshots/ds_02_lab_overview.png"><img src="docs/screenshots/ds_02_lab_overview.png" alt="02 · DSA Lab Overview" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>03 · Array / List Inspector</strong><br>
+<sub>Deck lifecycle view: creation, shuffle, deal, and remaining cards.</sub><br><br>
+<a href="docs/screenshots/ds_03_lab_array.png"><img src="docs/screenshots/ds_03_lab_array.png" alt="03 · Array / List Inspector" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>04 · Stack Inspector</strong><br>
+<sub>Stack contents, card order, pile composition, and recent stack operations.</sub><br><br>
+<a href="docs/screenshots/ds_04_lab_stack.png"><img src="docs/screenshots/ds_04_lab_stack.png" alt="04 · Stack Inspector" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>05 · Queue Inspector</strong><br>
+<sub>Stock queue with FIFO order, front/rear positions, and queue operations.</sub><br><br>
+<a href="docs/screenshots/ds_05_lab_queue.png"><img src="docs/screenshots/ds_05_lab_queue.png" alt="05 · Queue Inspector" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>06 · Linked List Inspector</strong><br>
+<sub>Tableau linked-list nodes, links, and run operations.</sub><br><br>
+<a href="docs/screenshots/ds_06_lab_linked_list.png"><img src="docs/screenshots/ds_06_lab_linked_list.png" alt="06 · Linked List Inspector" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>07 · Dictionary Inspector</strong><br>
+<sub>Searchable card index showing each card's current zone, pile, position, and face state.</sub><br><br>
+<a href="docs/screenshots/ds_07_lab_dictionary.png"><img src="docs/screenshots/ds_07_lab_dictionary.png" alt="07 · Dictionary Inspector" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>08 · Operation Timeline</strong><br>
+<sub>Chronological low-level operations recorded by the live OperationTracker.</sub><br><br>
+<a href="docs/screenshots/ds_08_lab_timeline.png"><img src="docs/screenshots/ds_08_lab_timeline.png" alt="08 · Operation Timeline" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>09 · Game Stats</strong><br>
+<sub>Current game statistics and Foundation progress.</sub><br><br>
+<a href="docs/screenshots/ds_09_lab_stats.png"><img src="docs/screenshots/ds_09_lab_stats.png" alt="09 · Game Stats" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>10 · Play Workspace and DSA Lab Comparison</strong><br>
+<sub>Side-by-side view of the two main application workspaces.</sub><br><br>
+<a href="docs/screenshots/ds_13_play_lab_comparison.png"><img src="docs/screenshots/ds_13_play_lab_comparison.png" alt="10 · Play Workspace and DSA Lab Comparison" width="480"></a>
+</td>
+</tr>
+</table>
 
-The repository also contains individual screenshots of the Array/List, Stack, Queue, Linked List, Dictionary, Timeline, and Game Stats inspectors in [docs/screenshots](docs/screenshots/).
+### Gameplay interactions and visual effects
+
+These screenshots highlight individual game states and interaction feedback, including card selection, dragging, dealing, and victory.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<strong>11 · Premium Play Workspace</strong><br>
+<sub>Full view of the premium casino-style game interface.</sub><br><br>
+<a href="docs/screenshots/pr_01_play_workspace.png"><img src="docs/screenshots/pr_01_play_workspace.png" alt="11 · Premium Play Workspace" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>12 · Mid-game Board State</strong><br>
+<sub>A populated Tableau and Waste during active play.</sub><br><br>
+<a href="docs/screenshots/pr_02_play_midgame.png"><img src="docs/screenshots/pr_02_play_midgame.png" alt="12 · Mid-game Board State" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>13 · Header Metric Chips</strong><br>
+<sub>Close-up of the Time, Moves, and Score display.</sub><br><br>
+<a href="docs/screenshots/pr_03_chips_closeup.png"><img src="docs/screenshots/pr_03_chips_closeup.png" alt="13 · Header Metric Chips" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>14 · Stock and Waste Area</strong><br>
+<sub>Close-up of the Stock and Waste piles and their card presentation.</sub><br><br>
+<a href="docs/screenshots/pr_03_stock_waste_chips.png"><img src="docs/screenshots/pr_03_stock_waste_chips.png" alt="14 · Stock and Waste Area" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>15 · Card Hover / Lift Feedback</strong><br>
+<sub>Card lift effect shown during pointer interaction.</sub><br><br>
+<a href="docs/screenshots/pr_04_hover_lift.png"><img src="docs/screenshots/pr_04_hover_lift.png" alt="15 · Card Hover / Lift Feedback" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>16 · Selected Card Highlight</strong><br>
+<sub>Gold selection treatment around the selected card or run.</sub><br><br>
+<a href="docs/screenshots/pr_05_selection_gold_ring.png"><img src="docs/screenshots/pr_05_selection_gold_ring.png" alt="16 · Selected Card Highlight" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>17 · New-game Deal Animation</strong><br>
+<sub>Cards being dealt from the Stock into the Tableau.</sub><br><br>
+<a href="docs/screenshots/pr_06_deal_frame.png"><img src="docs/screenshots/pr_06_deal_frame.png" alt="17 · New-game Deal Animation" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>18 · Manual Drag Interaction</strong><br>
+<sub>A card or face-up run being dragged across the board.</sub><br><br>
+<a href="docs/screenshots/pr_07_manual_drag.png"><img src="docs/screenshots/pr_07_manual_drag.png" alt="18 · Manual Drag Interaction" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>19 · Foundation Landing Effect</strong><br>
+<sub>Particle burst and visual feedback when a card reaches a Foundation.</sub><br><br>
+<a href="docs/screenshots/pr_10_foundation_burst.png"><img src="docs/screenshots/pr_10_foundation_burst.png" alt="19 · Foundation Landing Effect" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>20 · Foundation After Landing</strong><br>
+<sub>The board after the Foundation landing animation settles.</sub><br><br>
+<a href="docs/screenshots/pr_10b_foundation_settled.png"><img src="docs/screenshots/pr_10b_foundation_settled.png" alt="20 · Foundation After Landing" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>21 · Victory Overlay</strong><br>
+<sub>The non-blocking victory presentation with the completed game's results.</sub><br><br>
+<a href="docs/screenshots/pr_13_victory.png"><img src="docs/screenshots/pr_13_victory.png" alt="21 · Victory Overlay" width="480"></a>
+</td>
+<td width="50%" valign="top"></td>
+</tr>
+</table>
+
+### Dashboard and DSA Lab detail views
+
+Additional screenshots documenting the dashboard and selected inspector layouts.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<strong>22 · Live DSA Dashboard</strong><br>
+<sub>Structure counts, latest operation, recent moves, and game progress.</sub><br><br>
+<a href="docs/screenshots/pr_11_dashboard.png"><img src="docs/screenshots/pr_11_dashboard.png" alt="22 · Live DSA Dashboard" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>23 · DSA Lab Overview Detail</strong><br>
+<sub>The dedicated DSA Lab workspace and its navigation.</sub><br><br>
+<a href="docs/screenshots/pr_12_dsa_lab_overview.png"><img src="docs/screenshots/pr_12_dsa_lab_overview.png" alt="23 · DSA Lab Overview Detail" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>24 · Stack Inspector Detail</strong><br>
+<sub>The Stack inspector showing its current pile data.</sub><br><br>
+<a href="docs/screenshots/pr_12b_dsa_lab_stack.png"><img src="docs/screenshots/pr_12b_dsa_lab_stack.png" alt="24 · Stack Inspector Detail" width="480"></a>
+</td>
+<td width="50%" valign="top"></td>
+</tr>
+</table>
+
+### Responsive Play and DSA Lab layouts
+
+The following captures show the application at different viewport sizes and window states. They are visual references, not a substitute for testing on every display or DPI configuration.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<strong>25 · Play Workspace at 1280 × 800</strong><br>
+<sub>Compact Play workspace at the 1280 × 800 reference size.</sub><br><br>
+<a href="docs/screenshots/ds_10_play_1280x800.png"><img src="docs/screenshots/ds_10_play_1280x800.png" alt="25 · Play Workspace at 1280 × 800" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>26 · Play Workspace at 1920 × 1029</strong><br>
+<sub>Wide Play workspace on a larger display.</sub><br><br>
+<a href="docs/screenshots/ds_11_play_1920x1029.png"><img src="docs/screenshots/ds_11_play_1920x1029.png" alt="26 · Play Workspace at 1920 × 1029" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>27 · DSA Lab at 1280 × 800</strong><br>
+<sub>DSA Lab layout at the compact reference size.</sub><br><br>
+<a href="docs/screenshots/ds_12_lab_1280x800.png"><img src="docs/screenshots/ds_12_lab_1280x800.png" alt="27 · DSA Lab at 1280 × 800" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>28 · Responsive Layout at 1280 × 800</strong><br>
+<sub>Premium game layout at a compact desktop size.</sub><br><br>
+<a href="docs/screenshots/pr_08_responsive_1280x800.png"><img src="docs/screenshots/pr_08_responsive_1280x800.png" alt="28 · Responsive Layout at 1280 × 800" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>29 · Responsive Layout at 1920 × 1029</strong><br>
+<sub>Premium game layout at a wide desktop size.</sub><br><br>
+<a href="docs/screenshots/pr_09_responsive_1920x1029.png"><img src="docs/screenshots/pr_09_responsive_1920x1029.png" alt="29 · Responsive Layout at 1920 × 1029" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>30 · Play Workspace at 1280 × 720</strong><br>
+<sub>Short-height Play workspace reference.</sub><br><br>
+<a href="docs/screenshots/ui_play_1280x720.png"><img src="docs/screenshots/ui_play_1280x720.png" alt="30 · Play Workspace at 1280 × 720" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>31 · Play Workspace at 1366 × 768</strong><br>
+<sub>Play workspace at a common laptop resolution.</sub><br><br>
+<a href="docs/screenshots/ui_play_1366x768.png"><img src="docs/screenshots/ui_play_1366x768.png" alt="31 · Play Workspace at 1366 × 768" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>32 · Play Workspace at 1600 × 900</strong><br>
+<sub>Play workspace at the design reference size.</sub><br><br>
+<a href="docs/screenshots/ui_play_1600x900.png"><img src="docs/screenshots/ui_play_1600x900.png" alt="32 · Play Workspace at 1600 × 900" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>33 · Play Workspace at 1920 × 1080</strong><br>
+<sub>Play workspace at Full HD resolution.</sub><br><br>
+<a href="docs/screenshots/ui_play_1920x1080.png"><img src="docs/screenshots/ui_play_1920x1080.png" alt="33 · Play Workspace at 1920 × 1080" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>34 · Play Workspace After Window Transitions</strong><br>
+<sub>Board after restore, resize, and maximize transitions.</sub><br><br>
+<a href="docs/screenshots/ui_play_after_transitions.png"><img src="docs/screenshots/ui_play_after_transitions.png" alt="34 · Play Workspace After Window Transitions" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>35 · Maximized Play Workspace</strong><br>
+<sub>Play workspace in a maximized window.</sub><br><br>
+<a href="docs/screenshots/ui_play_maximized.png"><img src="docs/screenshots/ui_play_maximized.png" alt="35 · Maximized Play Workspace" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>36 · Game Mode / Settings at 1280 × 720</strong><br>
+<sub>Settings layout at a short-height reference size.</sub><br><br>
+<a href="docs/screenshots/ui_settings_1280x720.png"><img src="docs/screenshots/ui_settings_1280x720.png" alt="36 · Game Mode / Settings at 1280 × 720" width="480"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<strong>37 · Game Mode / Settings at 1600 × 900</strong><br>
+<sub>Settings layout at the design reference size.</sub><br><br>
+<a href="docs/screenshots/ui_settings_1600x900.png"><img src="docs/screenshots/ui_settings_1600x900.png" alt="37 · Game Mode / Settings at 1600 × 900" width="480"></a>
+</td>
+<td width="50%" valign="top">
+<strong>38 · Maximized Game Mode / Settings</strong><br>
+<sub>Settings layout in a maximized window.</sub><br><br>
+<a href="docs/screenshots/ui_settings_maximized.png"><img src="docs/screenshots/ui_settings_maximized.png" alt="38 · Maximized Game Mode / Settings" width="480"></a>
+</td>
+</tr>
+</table>
+
 
 ## What is implemented
 
