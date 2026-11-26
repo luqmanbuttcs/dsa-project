@@ -353,14 +353,48 @@ The game runs locally and does not require an external game API or online servic
 
 ## Getting started
 
-### Requirements
+### One-click launch (recommended)
 
-- Python **3.12 or newer**
-- Windows, Linux, or another desktop environment supported by PyQt6
+You do **not** need to create a virtual environment, install packages manually, or run the tests to play the game.
 
-### Windows PowerShell
+1. Install **Python 3.12 or newer** once, if it is not already installed.
+2. Clone or download this repository.
+3. Open the project folder.
+4. On Windows, double-click **`PLAY_SOLITAIRE.bat`**.
+5. On macOS, double-click **`PLAY_SOLITAIRE.command`**. On Linux, run `bash play_solitaire.sh` from the project folder.
 
-Clone the repository and open PowerShell in the project directory:
+The launcher automatically:
+
+- Finds a compatible Python installation.
+- Creates a dedicated `.game-venv` for the game. It does not reuse or overwrite a developer's `.venv`.
+- Installs the runtime dependencies from `pyproject.toml` on the first launch, or when those dependencies change.
+- Starts the premium Solitaire application.
+
+**Tests are not run when launching the game.** Pytest and other development tools are not installed by the player launcher. The initial setup requires an internet connection to download PyQt6; later launches reuse the prepared environment and skip the dependency installation.
+
+If setup fails, the launcher keeps the terminal open and displays the error so it can be corrected.
+
+### Launch commands
+
+| Platform | Command / action |
+|---|---|
+| Windows | Double-click `PLAY_SOLITAIRE.bat` |
+| macOS | Double-click `PLAY_SOLITAIRE.command` |
+| Linux | Run `bash play_solitaire.sh` |
+
+You can also pass application arguments through the launcher. For example, on Windows run `PLAY_SOLITAIRE.bat --legacy` to open the earlier Phase 4 interface.
+
+### Portable Windows build (no Python installation)
+
+The **Portable Windows App** GitHub Actions workflow packages the application and its artwork/audio into a standalone folder. It can be run without installing Python:
+
+- A manual run of the [Portable Windows App workflow](https://github.com/luqmanbuttcs/dsa-project/actions/workflows/portable-windows.yml) produces a downloadable `KlondikeSolitaire-Windows` artifact.
+- When a version tag such as `v1.0.0` is pushed, the workflow attaches `KlondikeSolitaire-Windows.zip` to the corresponding GitHub Release.
+- Extract the ZIP and double-click `KlondikeSolitaire.exe`. Keep the extracted `KlondikeSolitaire` folder intact because it contains the bundled Qt runtime and game assets.
+
+### Developer setup (optional)
+
+The commands below are for contributors who want to run tests or modify the project. They are **not required** for ordinary gameplay.
 
 ```powershell
 git clone https://github.com/luqmanbuttcs/dsa-project.git
@@ -380,9 +414,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
 
-### Launch the application
-
-Start the premium interface:
+For manual launching from the developer environment:
 
 ```powershell
 python -m solitaire.main
@@ -423,6 +455,11 @@ python -m solitaire.main --legacy
 
 ```text
 dsa-project/
+├── PLAY_SOLITAIRE.bat          # Windows double-click launcher
+├── PLAY_SOLITAIRE.command      # macOS Finder launcher
+├── play_solitaire.sh           # Linux/macOS terminal launcher
+├── packaging/
+│   └── KlondikeSolitaire.spec  # PyInstaller portable Windows build
 ├── src/solitaire/
 │   ├── domain/                 # Cards, deck, game state, rules, engine, operation tracker
 │   ├── structures/             # Custom Stack, Queue, and doubly linked list
@@ -441,6 +478,7 @@ dsa-project/
 │   ├── integration/             # End-to-end game-flow and validation tests
 │   └── ui/                      # PyQt6, interaction, animation, and responsive-layout tests
 ├── tools/
+│   ├── launch_game.py           # First-run environment bootstrap; no tests are run
 │   ├── interaction_sweep.py     # Exercises UI interactions and checks for escaped exceptions
 │   └── generate_audio.py        # Generates bundled sound assets
 ├── docs/
@@ -477,14 +515,14 @@ SWEEP CLEAN — no exception escaped any slot
 
 ### Latest verified GitHub Actions run
 
-The post-merge workflow on `main` commit `b63a9c7` completed successfully:
+The latest verified workflow on `main` commit `fd9a219` completed successfully:
 
 | CI job | Environment | Test suite | Interaction sweep |
 |---|---|---:|---|
 | Linux | Ubuntu, Python 3.12.16 | 229 passed | Clean |
 | Windows | Windows, Python 3.14.7 | 229 passed | Clean |
 
-[View GitHub Actions run #268](https://github.com/luqmanbuttcs/dsa-project/actions/runs/42897392606).
+[View latest GitHub Actions run](https://github.com/luqmanbuttcs/dsa-project/actions/runs/43292051742).
 
 CI uses Qt's offscreen platform. It verifies the automated game, data-structure, UI, and interaction checks; it does not replace a final hands-on visual and mouse-feel check on the target computer.
 
