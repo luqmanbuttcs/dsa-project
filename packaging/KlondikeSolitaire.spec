@@ -4,7 +4,7 @@
 
 from pathlib import Path
 
-PROJECT_ROOT = Path(SPECPATH).resolve().parent.parent
+PROJECT_ROOT = Path(SPECPATH).resolve().parent
 SOURCE_ROOT = PROJECT_ROOT / "src"
 RESOURCE_ROOT = SOURCE_ROOT / "solitaire" / "ui" / "premium" / "resources"
 
